@@ -1,0 +1,162 @@
+@startuml uml-seq-code-analysis-workflow
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam backgroundColor #FFFFFF
+
+title Sequence Diagram - Complete Code Analysis Workflow with AI Explanation
+
+actor "Developer" as Dev
+participant "Frontend\n(React)" as FE
+participant "Backend\n(FastAPI)" as BE
+participant "AnalysisService" as AS
+participant "OrchestratorAgent" as Orch
+participant "SecurityAgent" as SecAgent
+participant "QualityAgent" as QA
+participant "PerformanceAgent" as PA
+participant "StyleAgent" as SA
+participant "AIExplainerService" as AIExp
+participant "MCPContextEnricher" as MCP
+participant "Gemini API" as Gemini
+participant "PostgreSQL" as DB
+
+Dev -> FE: Upload .py file
+activate FE
+
+FE -> BE: POST /api/v1/analyze (multipart/form-data)
+activate BE
+
+BE -> BE: Validate file\n(extension, size, UTF-8)
+
+alt File invalid
+    BE --> FE: HTTP 422 (Unprocessable Entity)
+    FE --> Dev: Show validation error
+    deactivate BE
+    deactivate FE
+else File valid
+    BE -> DB: Create CodeReview entity\n(status='PENDING')
+    activate DB
+    DB --> BE: review_id (UUID)
+    deactivate DB
+    
+    BE -> AS: analyze_code(file, user_id)
+    activate AS
+    
+    AS -> AS: Create AnalysisContext\n(analysis_id, code_content)
+    
+    AS -> Orch: orchestrate_analysis(context)
+    activate Orch
+    
+    Orch -> Orch: Emit ANALYSIS_STARTED event
+    
+    note over Orch, SecAgent
+        **Parallel Execution**
+        ThreadPoolExecutor(max_workers=4)
+    end note
+    
+    par SecurityAgent
+        Orch -> SecAgent: analyze(context)
+        activate SecAgent
+        SecAgent -> SecAgent: Parse AST
+        SecAgent -> SecAgent: Detect vulnerabilities\n(eval, SQL injection, etc.)
+        SecAgent --> Orch: Return findings list
+        deactivate SecAgent
+    and QualityAgent
+        Orch -> QA: analyze(context)
+        activate QA
+
+        QA --> Orch: Return findings list
+        deactivate QA
+    and PerformanceAgent
+        Orch -> PA: analyze(context)
+        activate PA
+
+        PA --> Orch: Return findings list
+        deactivate PA
+    and StyleAgent
+        Orch -> SA: analyze(context)
+        activate SA
+
+        SA --> Orch: Return findings list
+        deactivate SA
+    end
+
+    
+    Orch -> Orch: Aggregate all findings
+    Orch -> Orch: Calculate quality_score\n(0-100 formula)
+    
+    Orch -> Orch: Filter findings\n(severity == CRITICAL)
+    
+    alt Critical findings exist AND AI enabled
+        loop For each critical finding
+            Orch -> AIExp: generate_explanation(finding)
+            activate AIExp
+            
+            AIExp -> AIExp: Check RedisCache\n(SHA256 key)
+            
+            alt Cache miss
+                AIExp -> MCP: query_owasp(cwe_id)
+                activate MCP
+                MCP --> AIExp: OWASP mitigation strategies
+                deactivate MCP
+                
+                AIExp -> MCP: query_cve(cve_id)
+                activate MCP
+                MCP --> AIExp: CVE examples from NIST
+                deactivate MCP
+                
+                AIExp -> AIExp: Build Gemini prompt\n+ MCP context
+                
+                AIExp -> Gemini: generate_content(prompt)
+                activate Gemini
+                
+                alt API success
+                    Gemini --> AIExp: JSON response\n{explanation, attack_example, fix_code}
+                else API error (rate limit / timeout)
+                    Gemini --> AIExp: Error 429/504
+                    AIExp -> AIExp: Retry up to 3 times
+                    alt Retries exhausted
+                        AIExp -> AIExp: Fallback to static template
+                    end
+                end
+                deactivate Gemini
+                
+                AIExp -> AIExp: Parse response\nto AIExplanation object
+                AIExp -> AIExp: Cache in Redis\n(TTL 24 hours)
+            else Cache hit
+                AIExp -> AIExp: Return cached AIExplanation
+            end
+            
+            AIExp --> Orch: Return AIExplanation
+            deactivate AIExp
+            
+            Orch -> Orch: Attach ai_explanation\nto finding object
+        end
+    end
+    
+    Orch --> AS: Return CodeReview\nwith findings + AI explanations
+    deactivate Orch
+    
+    AS -> DB: Persist CodeReview\n(status='COMPLETED')
+    activate DB
+    DB --> AS: Success
+    deactivate DB
+    
+    AS -> DB: Persist agent_findings\n(batch insert)
+    activate DB
+    DB --> AS: Success
+    deactivate DB
+    
+    AS -> AS: Emit ANALYSIS_COMPLETED event
+    
+    AS --> BE: Return AnalysisDTO\n{analysis_id, quality_score, findings}
+    deactivate AS
+    
+    BE --> FE: HTTP 200\n{analysis_id, quality_score, total_findings}
+    deactivate BE
+    
+    FE -> FE: Redirect to Results Dashboard
+    FE --> Dev: Display findings\nwith AI explanations
+    deactivate FE
+end
+
+@enduml

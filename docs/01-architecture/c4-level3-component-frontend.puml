@@ -1,0 +1,65 @@
+@startuml C4_Level3_Component_Frontend
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+LAYOUT_WITH_LEGEND()
+
+title Component Diagram - React Frontend
+
+Container_Boundary(webApp, "React Frontend Application") {
+    
+    Component(uploadPage, "Upload Page", "React Component", "File drag-and-drop, validation feedback, analysis options selection")
+    Component(progressPage, "Progress Page", "React Component", "Real-time WebSocket updates, agent status cards, live log feed")
+    Component(resultsPage, "Results Dashboard", "React Component", "Quality score display, findings table, code viewer, severity charts")
+    Component(findingModal, "Finding Detail Modal", "React Component", "Expandable AI explanation cards, attack examples, fix code viewer")
+    Component(trendsPage, "Trends Dashboard", "React Component", "Line chart of quality scores, date range selector, top issues table")
+    Component(adminPage, "Admin Dashboard", "React Component", "Agent configuration, AI settings, team metrics, rate limits")
+    
+    Boundary(stateManagement, "State Management") {
+        Component(authStore, "Auth Store", "Zustand Store", "Manages user authentication state, JWT token, user role")
+        Component(analysisStore, "Analysis Store", "Zustand Store", "Manages current analysis state, findings, quality score")
+        Component(wsStore, "WebSocket Store", "Zustand Store", "Manages WebSocket connection, progress events, connection status")
+    }
+    
+    Boundary(services, "API Services") {
+        Component(apiClient, "API Client", "Axios", "HTTP client with interceptors for JWT, error handling, retry logic")
+        Component(wsClient, "WebSocket Client", "Native WebSocket", "Manages WebSocket connections, reconnection logic, event parsing")
+        Component(authClient, "Auth Client", "Clerk SDK", "Handles OAuth flow, token refresh, user session")
+    }
+    
+    Component(router, "React Router", "react-router-dom", "Client-side routing, protected routes, role-based access")
+    Component(uiLibrary, "shadcn/ui", "UI Components", "Reusable components: Button, Card, Modal, Table, Chart with Tailwind CSS")
+}
+
+Container(apiBackend, "FastAPI Backend", "Python API")
+Container(wsServer, "WebSocket Server", "Real-time events")
+System_Ext(clerk, "Clerk", "Auth provider")
+System_Ext(cdn, "CDN", "Static assets")
+
+Rel(uploadPage, apiClient, "Uploads file", "POST /analyze")
+Rel(progressPage, wsClient, "Subscribes to", "ws:///analysis/{id}")
+Rel(resultsPage, apiClient, "Fetches results", "GET /reviews/{id}")
+Rel(findingModal, analysisStore, "Reads finding data")
+Rel(trendsPage, apiClient, "Fetches history", "GET /reviews?page=1")
+Rel(adminPage, apiClient, "Updates config", "PUT /admin/config")
+
+Rel(authStore, authClient, "Manages auth", "clerk.signIn()")
+Rel(analysisStore, apiClient, "Fetches data")
+Rel(wsStore, wsClient, "Manages connection")
+
+Rel(apiClient, apiBackend, "Makes requests", "HTTPS")
+Rel(wsClient, wsServer, "Connects to", "WebSocket")
+Rel(authClient, clerk, "Authenticates", "OAuth 2.0")
+
+Rel(router, uploadPage, "Routes to")
+Rel(router, progressPage, "Routes to")
+Rel(router, resultsPage, "Routes to")
+Rel(router, trendsPage, "Routes to")
+Rel(router, adminPage, "Routes to")
+
+Rel(uploadPage, uiLibrary, "Uses components")
+Rel(resultsPage, uiLibrary, "Uses components")
+Rel(trendsPage, uiLibrary, "Uses Recharts")
+
+Rel(webApp, cdn, "Loads assets", "HTTPS")
+
+@enduml

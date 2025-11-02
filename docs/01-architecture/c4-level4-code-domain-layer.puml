@@ -1,0 +1,215 @@
+@startuml C4_Level4_Code_Domain
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+title Code Diagram - Domain Layer Classes (OOP Implementation)
+
+skinparam classAttributeIconSize 0
+skinparam class {
+  BackgroundColor #E7F5FF
+  BorderColor #1E40AF
+  ArrowColor #1E40AF
+}
+
+abstract class BaseAgent {
+  - name: str
+  - version: str
+  - category: AgentCategory
+  - config: AgentConfig
+  __
+  + {abstract} analyze(context: AnalysisContext): List[Finding]
+  + get_metadata(): Dict[str, Any]
+  + log_metrics(): void
+  # _parse_ast(code: str): ast.AST
+  # _emit_event(event_type: str): void
+}
+
+class SecurityAgent {
+  - bandit_analyzer: BanditAnalyzer
+  - regex_patterns: List[Pattern]
+  - entropy_threshold: float = 4.5
+  __
+  + analyze(context: AnalysisContext): List[Finding]
+  + detect_dangerous_functions(ast_tree: ast.AST): List[Finding]
+  + detect_sql_injection(code: str): List[Finding]
+  + detect_hardcoded_credentials(code: str): List[Finding]
+  + detect_weak_crypto(ast_tree: ast.AST): List[Finding]
+}
+
+class SecurityAgentEnhanced {
+  - ai_explainer: AIExplainerService
+  - mcp_enricher: MCPContextEnricher
+  __
+  + analyze(context: AnalysisContext): List[Finding]
+  # _enrich_critical_findings(findings: List[Finding]): List[Finding]
+}
+
+class QualityAgent {
+  - radon_analyzer: RadonAnalyzer
+  - complexity_threshold: int = 10
+  - duplication_threshold: float = 0.20
+  __
+  + analyze(context: AnalysisContext): List[Finding]
+  + calculate_complexity(ast_tree: ast.AST): List[Finding]
+  + detect_code_duplication(code: str): List[Finding]
+  + measure_function_length(ast_tree: ast.AST): List[Finding]
+}
+
+class PerformanceAgent {
+  - ast_visitor: ASTVisitor
+  - nested_loop_threshold: int = 3
+  __
+  + analyze(context: AnalysisContext): List[Finding]
+  + detect_nested_loops(ast_tree: ast.AST): List[Finding]
+  + detect_inefficient_patterns(ast_tree: ast.AST): List[Finding]
+}
+
+class StyleAgent {
+  - pylint_analyzer: PylintAnalyzer
+  - flake8_analyzer: Flake8Analyzer
+  __
+  + analyze(context: AnalysisContext): List[Finding]
+  + check_pep8_compliance(code: str): List[Finding]
+  + check_docstrings(ast_tree: ast.AST): List[Finding]
+  + check_imports(ast_tree: ast.AST): List[Finding]
+}
+
+class OrchestratorAgent {
+  - agent_factory: AgentFactory
+  - event_bus: EventBus
+  - ai_explainer: Optional[AIExplainerService]
+  - executor: ThreadPoolExecutor
+  - registered_agents: List[str]
+  __
+  + orchestrate_analysis(context: AnalysisContext): CodeReview
+  + execute_agents_parallel(context: AnalysisContext): Dict[str, List[Finding]]
+  + calculate_quality_score(findings: List[Finding]): int
+  + handle_agent_failure(agent_name: str, error: Exception): void
+  - _aggregate_findings(results: Dict): List[Finding]
+}
+
+class AgentFactory <<Singleton>> {
+  - {static} _instance: Optional[AgentFactory]
+  - _registry: Dict[str, Type[BaseAgent]]
+  - _instances: Dict[str, BaseAgent]
+  __
+  + {static} get_instance(): AgentFactory
+  + register_agent(name: str, agent_class: Type[BaseAgent]): void
+  + create_agent(name: str, config: AgentConfig): BaseAgent
+  + get_registered_agents(): List[str]
+}
+
+class EventBus {
+  - _observers: List[EventObserver]
+  - _lock: threading.Lock
+  __
+  + subscribe(observer: EventObserver): void
+  + unsubscribe(observer: EventObserver): void
+  + publish(event: Event): void
+  + notify_observers(event: Event): void
+}
+
+interface EventObserver {
+  + on_event(event: Event): void
+}
+
+class WebSocketObserver {
+  - connection: WebSocket
+  __
+  + on_event(event: Event): void
+  + send_to_client(message: Dict): void
+}
+
+class DatabaseObserver {
+  - repository: EventLogRepository
+  __
+  + on_event(event: Event): void
+}
+
+class LoggingObserver {
+  - logger: logging.Logger
+  __
+  + on_event(event: Event): void
+}
+
+class Finding {
+  + id: UUID
+  + agent_type: str
+  + severity: Severity
+  + issue_type: str
+  + line_number: int
+  + code_snippet: str
+  + message: str
+  + suggestion: str
+  + ai_explanation: Optional[AIExplanation]
+  + mcp_references: List[str]
+  + created_at: datetime
+  __
+  + get_severity_penalty(): int
+  + to_dict(): Dict
+}
+
+class AIExplanation {
+  + explanation: str
+  + attack_example: Optional[str]
+  + fix_code: Optional[str]
+  + cwe_reference: str
+  + owasp_category: str
+  + confidence_score: float
+  + model_used: str
+  + generated_at: datetime
+  __
+  + to_dict(): Dict
+}
+
+class CodeReview {
+  + id: UUID
+  + user_id: str
+  + filename: str
+  + quality_score: int
+  + status: ReviewStatus
+  + findings: List[Finding]
+  + created_at: datetime
+  + completed_at: Optional[datetime]
+  __
+  + add_finding(finding: Finding): void
+  + calculate_score(): int
+  + get_findings_by_severity(severity: Severity): List[Finding]
+  + is_completed(): bool
+}
+
+enum Severity {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum ReviewStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+' Inheritance
+BaseAgent <|-- SecurityAgent
+BaseAgent <|-- QualityAgent
+BaseAgent <|-- PerformanceAgent
+BaseAgent <|-- StyleAgent
+SecurityAgent <|-- SecurityAgentEnhanced
+
+' Associations
+OrchestratorAgent --> AgentFactory : uses
+OrchestratorAgent --> EventBus : publishes
+OrchestratorAgent --> CodeReview : creates
+AgentFactory --> BaseAgent : creates
+EventBus --> EventObserver : notifies
+EventObserver <|.. WebSocketObserver
+EventObserver <|.. DatabaseObserver
+EventObserver <|.. LoggingObserver
+Finding --> AIExplanation : has 0..1
+Finding --> Severity : has
+CodeReview "1" *-- "*" Finding : contains
+CodeReview --> ReviewStatus : has
+
+@enduml

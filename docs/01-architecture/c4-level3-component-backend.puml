@@ -1,0 +1,81 @@
+@startuml C4_Level3_Component_Backend
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+LAYOUT_WITH_LEGEND()
+
+title Component Diagram - FastAPI Backend (Clean Architecture)
+
+Container_Boundary(apiBackend, "FastAPI Backend") {
+    
+    Component(restControllers, "REST API Controllers", "FastAPI Router", "Handles HTTP requests: POST /analyze, GET /reviews/{id}, GET /reviews, POST /export")
+    Component(wsHandler, "WebSocket Handler", "FastAPI WebSocket", "Manages WebSocket connections, subscribes to EventBus, streams progress events to clients")
+    
+    Boundary(applicationLayer, "Application Layer") {
+        Component(analysisService, "AnalysisService", "Python Service", "Orchestrates analysis workflow: validates files, invokes OrchestratorAgent, persists results")
+        Component(authService, "AuthenticationService", "Python Service", "Validates JWT tokens, checks user roles (developer/admin), enforces rate limits")
+        Component(aiExplainerService, "AIExplainerService", "Python Service", "Generates AI explanations via Gemini, manages cache, handles fallbacks")
+        Component(exportService, "ExportService", "Python Service", "Generates JSON and PDF reports with findings and AI explanations")
+    }
+    
+    Boundary(domainLayer, "Domain Layer (Core Business Logic)") {
+        Component(orchestrator, "OrchestratorAgent", "Python Class", "Coordinates parallel agent execution, aggregates findings, calculates quality_score")
+        Component(securityAgent, "SecurityAgent", "Python Class", "Detects vulnerabilities: eval/exec, SQL injection, hardcoded credentials, weak crypto")
+        Component(qualityAgent, "QualityAgent", "Python Class", "Measures cyclomatic complexity, code duplication, function length")
+        Component(perfAgent, "PerformanceAgent", "Python Class", "Identifies nested loops, inefficient algorithms, expensive operations")
+        Component(styleAgent, "StyleAgent", "Python Class", "Validates PEP 8 compliance, checks docstrings, detects unused imports")
+        Component(eventBus, "EventBus", "Python Class (Observer)", "Publishes/subscribes to events: AGENT_STARTED, AGENT_COMPLETED, ANALYSIS_COMPLETED")
+        Component(agentFactory, "AgentFactory", "Python Class (Singleton)", "Creates and registers agent instances dynamically")
+    }
+    
+    Boundary(infrastructureLayer, "Infrastructure Layer") {
+        Component(reviewRepo, "CodeReviewRepository", "Python + SQLAlchemy", "Persists CodeReview entities to database, handles encryption")
+        Component(findingRepo, "AgentFindingRepository", "Python + SQLAlchemy", "Persists Finding entities with AI explanations and MCP references")
+        Component(userRepo, "UserRepository", "Python + SQLAlchemy", "Manages user data, daily quota tracking")
+        Component(mcpClient, "MCPContextEnricher", "Python + MCP SDK", "Queries OWASP, CVE, and custom MCP servers for context enrichment")
+        Component(redisCache, "RedisCache", "Python + redis-py", "Caches AI explanations (SHA256 keys), checks rate limits")
+    }
+}
+
+ContainerDb(database, "PostgreSQL", "Supabase")
+System_Ext(vertexAI, "Vertex AI", "Gemini API")
+System_Ext(redis, "Redis", "Upstash")
+System_Ext(clerk, "Clerk", "Auth service")
+System_Ext(mcpServers, "MCP Servers", "OWASP/CVE/Custom")
+
+Rel(restControllers, analysisService, "Invokes", "analyze_code(file, user_id)")
+Rel(restControllers, authService, "Validates via", "validate_jwt(token)")
+Rel(restControllers, exportService, "Generates reports via", "export_json(review_id)")
+Rel(wsHandler, eventBus, "Subscribes to", "subscribe(WebSocketObserver)")
+
+Rel(analysisService, orchestrator, "Orchestrates analysis", "orchestrate_analysis(context)")
+Rel(analysisService, reviewRepo, "Persists review", "create(review)")
+Rel(analysisService, findingRepo, "Persists findings", "create_batch(findings)")
+Rel(analysisService, authService, "Checks permissions", "check_rate_limit(user_id)")
+
+Rel(orchestrator, agentFactory, "Creates agents", "create_agent('SecurityAgent')")
+Rel(orchestrator, eventBus, "Publishes events", "publish(AGENT_STARTED)")
+Rel(orchestrator, securityAgent, "Executes", "analyze(context)")
+Rel(orchestrator, qualityAgent, "Executes", "analyze(context)")
+Rel(orchestrator, perfAgent, "Executes", "analyze(context)")
+Rel(orchestrator, styleAgent, "Executes", "analyze(context)")
+
+Rel(securityAgent, aiExplainerService, "Requests explanations", "generate_explanation(finding)")
+
+Rel(aiExplainerService, mcpClient, "Enriches context", "enrich_context(finding)")
+Rel(aiExplainerService, vertexAI, "Generates via", "generate_content(prompt)")
+Rel(aiExplainerService, redisCache, "Caches in", "set(key, explanation)")
+
+Rel(authService, clerk, "Validates tokens", "verify_jwt(token)")
+Rel(authService, userRepo, "Checks quota", "get_user_quota(user_id)")
+
+Rel(reviewRepo, database, "Reads/Writes")
+Rel(findingRepo, database, "Reads/Writes")
+Rel(userRepo, database, "Reads/Writes")
+Rel(mcpClient, mcpServers, "Queries")
+Rel(redisCache, redis, "Reads/Writes")
+
+Lay_D(restControllers, analysisService)
+Lay_D(analysisService, orchestrator)
+Lay_D(orchestrator, securityAgent)
+
+@enduml

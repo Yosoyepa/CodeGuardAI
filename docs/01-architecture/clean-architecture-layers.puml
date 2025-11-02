@@ -1,0 +1,128 @@
+@startuml clean-architecture-layers
+skinparam componentStyle rectangle
+skinparam backgroundColor #FFFFFF
+
+skinparam component {
+  BackgroundColor<<domain>> #FFF4E6
+  BackgroundColor<<application>> #E7F5FF
+  BackgroundColor<<infrastructure>> #F0FFF4
+  BackgroundColor<<presentation>> #F3F4F6
+  BorderColor #1E40AF
+  BorderThickness 2
+  FontSize 11
+}
+
+skinparam package {
+  BackgroundColor<<domain>> #FFF4E6
+  BackgroundColor<<application>> #E7F5FF
+  BackgroundColor<<infrastructure>> #F0FFF4
+  BackgroundColor<<presentation>> #F3F4F6
+  BorderColor #1E40AF
+  BorderThickness 3
+  FontSize 14
+  FontStyle bold
+}
+
+skinparam arrow {
+  Color #6366F1
+  Thickness 2
+}
+
+title Clean Architecture - CodeGuard AI (Onion Model with AI Integration)
+
+' Layer 1: Presentation
+rectangle "==PRESENTATION LAYER==" <<presentation>> {
+  component [FastAPI REST API\n• POST /analyze\n• GET /reviews/{id}\n• OpenAPI /docs] as API
+  component [WebSocket Server\n• Real-time progress\n• ws:///analysis/{id}] as WS
+}
+
+' Layer 2: Application
+rectangle "==APPLICATION LAYER==" <<application>> {
+  component [AnalysisService\n• validate_file()\n• orchestrate_analysis()\n• persist_results()] as AnalysisService
+  component [AuthenticationService\n• validate_jwt()\n• check_permissions()\n• get_user()] as AuthService
+  component [AIExplainerService\n• generate_explanation()\n• fallback_to_template()\n• cache_explanation()] as AIService
+}
+
+' Layer 3: Domain (Core)
+rectangle "==DOMAIN LAYER (Core Business Logic)==" <<domain>> {
+  component [OrchestratorAgent\n• orchestrate_analysis()\n• calculate_quality_score()\n• handle_failures()] as Orchestrator
+  component [BaseAgent\n<<abstract>>\n• analyze()\n• get_metadata()] as BaseAgent
+  component [SecurityAgent\n• detect_vulnerabilities()] as SecAgent
+  component [QualityAgent\n• measure_complexity()] as QualAgent
+  component [PerformanceAgent\n• detect_bottlenecks()] as PerfAgent
+  component [StyleAgent\n• check_pep8()] as StyleAgent
+  component [EventBus\n<<Observer>>\n• publish()\n• subscribe()] as EventBus
+  component [AgentFactory\n<<Singleton>>\n• create_agent()\n• register_agent()] as Factory
+}
+
+' Layer 4: Infrastructure
+rectangle "==INFRASTRUCTURE LAYER==" <<infrastructure>> {
+  component [CodeReviewRepository] as ReviewRepo
+  component [AgentFindingRepository] as FindingRepo
+  database [Supabase\nPostgreSQL] as DB
+  database [Redis Cache\nTTL 24h] as Redis
+  component [Clerk OAuth\nGoogle/GitHub] as Clerk
+  component [Gemini API Client\nFlash/Pro] as Gemini
+  component [MCPContextEnricher\nOWASP/CVE/Custom] as MCP
+}
+
+' Dependencies (Dependency Inversion: all arrows point inward toward Domain)
+API -down-> AnalysisService : <<uses>>
+WS -down-> AnalysisService : <<uses>>
+
+AnalysisService -down-> Orchestrator : <<uses>>
+AnalysisService -down-> ReviewRepo : <<uses>>
+AnalysisService --> AuthService : <<uses>>
+
+AuthService -down-> Clerk : <<implements>>
+
+AIService -down-> Gemini : <<implements>>
+AIService --> MCP : <<uses>>
+AIService --> Redis : <<uses>>
+
+Orchestrator --> Factory : <<uses>>
+Orchestrator --> EventBus : <<publishes>>
+
+Factory -down-> BaseAgent : <<creates>>
+
+BaseAgent <|-- SecAgent : <<extends>>
+BaseAgent <|-- QualAgent : <<extends>>
+BaseAgent <|-- PerfAgent : <<extends>>
+BaseAgent <|-- StyleAgent : <<extends>>
+
+ReviewRepo -down-> DB : <<persists>>
+FindingRepo -down-> DB : <<persists>>
+
+' Floating notes
+note top of Orchestrator
+  <b>Core Business Logic</b>
+  • No external dependencies
+  • Framework-independent
+  • Highly testable in isolation
+  • Pure business rules
+end note
+
+note bottom of DB
+  <b>External Services</b>
+  • Database, APIs, Cache
+  • Implements interfaces
+  • Defined in Domain layer
+  • Dependency Inversion Principle
+end note
+
+legend right
+  |<#FFF4E6>  | <b>Domain Layer (Core)</b> |
+  |<#E7F5FF>  | <b>Application Layer</b> |
+  |<#F0FFF4>  | <b>Infrastructure Layer</b> |
+  |<#F3F4F6>  | <b>Presentation Layer</b> |
+  
+  <b>Dependency Rule:</b>
+  All dependencies point INWARD
+  toward the Domain (core)
+  
+  <b>Key Principle:</b>
+  Inner layers know nothing
+  about outer layers
+endlegend
+
+@enduml

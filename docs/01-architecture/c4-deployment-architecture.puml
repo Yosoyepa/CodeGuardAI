@@ -1,0 +1,93 @@
+@startuml C4_Deployment
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Deployment.puml
+
+LAYOUT_WITH_LEGEND()
+
+title Deployment Diagram - CodeGuard AI Production Environment
+
+Deployment_Node(internet, "Internet", "Public Internet") {
+    Deployment_Node(userDevices, "User Devices", "Laptops, Desktops") {
+        Container(browser, "Web Browser", "Chrome/Firefox/Safari", "Runs React SPA")
+    }
+}
+
+Deployment_Node(cdn, "Content Delivery Network", "Cloudflare / Vercel") {
+    Container(staticFiles, "Static Assets", "HTML, JS, CSS, Images", "Cached and served globally")
+}
+
+Deployment_Node(railway, "Railway Platform", "Cloud Container Platform (US-East)") {
+    Deployment_Node(containerAPI, "Docker Container 1", "Ubuntu 22.04, 2 vCPU, 4GB RAM") {
+        Container(apiBackend, "FastAPI Backend", "Python 3.11, Gunicorn, 4 workers", "Main API server")
+        Container(wsServer, "WebSocket Server", "Python, FastAPI WebSocket", "Real-time events")
+    }
+    
+    Deployment_Node(containerMCP, "Docker Container 2", "Ubuntu 22.04, 1 vCPU, 2GB RAM") {
+        Container(mcpOWASP, "OWASP MCP Server", "Node.js 20", "Port 3001")
+        Container(mcpCVE, "CVE MCP Server", "Node.js 20", "Port 3002")
+        Container(mcpCustom, "CodeGuard KB MCP", "Python 3.11", "Port 3003")
+    }
+    
+    Deployment_Node(loadBalancer, "Railway Load Balancer", "NGINX") {
+        System_Ext(lb, "Load Balancer", "Routes traffic, SSL termination")
+    }
+}
+
+Deployment_Node(supabase, "Supabase Cloud", "Managed PostgreSQL (US-East)") {
+    Deployment_Node(dbCluster, "PostgreSQL Cluster", "3 nodes, auto-failover") {
+        ContainerDb(database, "PostgreSQL 15", "Primary + 2 Replicas", "16GB RAM, 100GB SSD")
+    }
+}
+
+Deployment_Node(upstash, "Upstash Cloud", "Managed Redis (US-East)") {
+    ContainerDb(redis, "Redis 7", "Single instance", "512MB RAM, Global replication")
+}
+
+Deployment_Node(gcp, "Google Cloud Platform", "us-central1 region") {
+    System_Ext(vertexAI, "Vertex AI Gemini Pro", "AI API endpoint")
+    System_Ext(secretManager, "Secret Manager", "API key storage")
+}
+
+System_Ext(clerk, "Clerk", "Authentication SaaS (Global)")
+
+' Relationships
+Rel(browser, cdn, "Loads static files", "HTTPS")
+Rel(browser, lb, "Makes API calls", "HTTPS")
+Rel(browser, wsServer, "WebSocket connection", "WSS")
+
+Rel(lb, apiBackend, "Routes requests", "HTTP")
+Rel(apiBackend, wsServer, "Publishes events", "In-process")
+Rel(apiBackend, database, "Reads/Writes", "PostgreSQL (TLS, port 5432)")
+Rel(apiBackend, redis, "Caches data", "Redis (TLS, port 6379)")
+Rel(apiBackend, vertexAI, "Generates AI", "HTTPS (gRPC over HTTP/2)")
+Rel(apiBackend, secretManager, "Fetches keys", "HTTPS")
+Rel(apiBackend, clerk, "Validates JWT", "HTTPS")
+Rel(apiBackend, mcpOWASP, "Queries OWASP", "MCP stdio")
+Rel(apiBackend, mcpCVE, "Queries CVE", "MCP stdio")
+Rel(apiBackend, mcpCustom, "Queries KB", "MCP stdio")
+
+note right of railway
+  **Auto-scaling:**
+  • 1-5 containers based on CPU (>70%)
+  • Health checks every 30s (GET /health)
+  • Rolling deployments (zero downtime)
+  • Auto-restart on failure
+end note
+
+note right of supabase
+  **Database Configuration:**
+  • Connection pool: 20-30 connections
+  • Daily automated backups (30-day retention)
+  • Point-in-time recovery (7 days)
+  • Row-level security enabled
+  • Encryption at rest (AES-256)
+end note
+
+note right of gcp
+  **AI Configuration:**
+  • Budget alert: $150/$200
+  • Rate limit: 100 requests/day
+  • Token limit: 8K input, 2K output
+  • Latency SLA: p95 < 3 seconds
+end note
+
+@enduml

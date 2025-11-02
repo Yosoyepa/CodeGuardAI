@@ -1,0 +1,47 @@
+@startuml C4_Level2_Container
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+LAYOUT_WITH_LEGEND()
+
+title Container Diagram for CodeGuard AI Platform
+
+Person(developer, "Python Developer", "Uploads code and reviews analysis")
+Person(admin, "Tech Lead", "Configures system and monitors metrics")
+
+System_Boundary(codeGuardAI, "CodeGuard AI Platform") {
+    Container(webApp, "React Frontend", "JavaScript/TypeScript, React 18, Vite", "Provides code upload UI, results dashboard with AI explanations, trends visualization, and admin configuration panel")
+    Container(apiBackend, "FastAPI Backend", "Python 3.11, FastAPI, SQLAlchemy", "Handles file validation, orchestrates multi-agent analysis, generates AI explanations, enforces business rules")
+    Container(wsServer, "WebSocket Server", "Python, FastAPI WebSocket", "Streams real-time analysis progress events (AGENT_STARTED, AGENT_COMPLETED, ANALYSIS_COMPLETED)")
+    ContainerDb(database, "PostgreSQL Database", "Supabase PostgreSQL 15", "Stores code_reviews, agent_findings, users, agent_configs, ai_usage_metrics, mcp_context_logs")
+    Container(mcpOWASP, "OWASP MCP Server", "Node.js, MCP SDK", "Provides OWASP Top 10 mappings, CWE definitions, mitigation strategies")
+    Container(mcpCVE, "CVE MCP Server", "Node.js, MCP SDK", "Queries NIST NVD for real-world vulnerability examples")
+    Container(mcpCustom, "CodeGuard KB MCP", "Python, MCP SDK", "Custom knowledge base with team-specific fix patterns and conventions")
+}
+
+System_Ext(clerk, "Clerk", "OAuth provider")
+System_Ext(vertexAI, "Vertex AI Gemini Pro", "Production AI API")
+System_Ext(geminiFlash, "Gemini Flash API", "Development AI API")
+System_Ext(redis, "Redis Cache", "Upstash managed Redis")
+System_Ext(cdn, "CDN", "Cloudflare/Vercel for static assets")
+
+Rel(developer, webApp, "Uses", "HTTPS")
+Rel(admin, webApp, "Configures", "HTTPS")
+Rel(webApp, cdn, "Loads from", "HTTPS")
+Rel(webApp, apiBackend, "Makes API calls to", "JSON/HTTPS REST")
+Rel(webApp, wsServer, "Subscribes to progress events", "WebSocket (wss://)")
+
+Rel(apiBackend, database, "Reads/Writes code reviews, findings, metrics", "PostgreSQL (port 5432)")
+Rel(apiBackend, clerk, "Validates JWT, retrieves user data", "HTTPS / Clerk SDK")
+Rel(apiBackend, vertexAI, "Generates AI explanations (Prod)", "HTTPS / Vertex AI SDK")
+Rel(apiBackend, geminiFlash, "Generates AI explanations (Dev)", "HTTPS / genai SDK")
+Rel(apiBackend, redis, "Caches AI explanations, checks rate limits", "Redis Protocol (port 6379)")
+Rel(apiBackend, mcpOWASP, "Queries OWASP context", "MCP stdio")
+Rel(apiBackend, mcpCVE, "Queries CVE examples", "MCP stdio")
+Rel(apiBackend, mcpCustom, "Queries team conventions", "MCP stdio")
+
+Rel(wsServer, apiBackend, "Subscribes to EventBus", "In-process Observer")
+
+Lay_D(webApp, apiBackend)
+Lay_D(apiBackend, database)
+
+@enduml

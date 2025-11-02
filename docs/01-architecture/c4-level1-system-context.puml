@@ -1,0 +1,33 @@
+@startuml c4-level1-system-context
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+
+LAYOUT_WITH_LEGEND()
+
+title System Context Diagram - CodeGuard AI Multi-Agent Code Review System
+
+Person(developer, "Python Developer", "Software developer needing automated code quality feedback before committing changes")
+Person(techLead, "Tech Lead / Admin", "Team leader who configures analysis rules and monitors team metrics")
+
+System(codeGuardAI, "CodeGuard AI Platform", "Multi-agent code review system with AI-powered explanations.\nAnalyzes Python code for security, quality, performance, and style issues.")
+
+System_Ext(clerk, "Clerk Authentication", "OAuth 2.0 authentication provider\n(Google and GitHub login)")
+System_Ext(supabase, "Supabase", "Managed PostgreSQL database\nwith real-time features and encryption")
+System_Ext(vertexAI, "Google Vertex AI", "Gemini 1.5 Pro API for generating\npedagogical explanations (Production)")
+System_Ext(geminiFlash, "Google AI Studio", "Gemini 1.5 Flash API for\ndevelopment/testing (Free tier)")
+System_Ext(mcpServers, "MCP Servers", "Model Context Protocol servers\n(OWASP, CVE, Custom Knowledge Base)")
+System_Ext(redis, "Redis Cache", "In-memory cache (Upstash)\nfor AI explanations (TTL 24h)")
+
+Rel(developer, codeGuardAI, "Uploads Python files, views results,\napplies AI-suggested fixes", "HTTPS")
+Rel(techLead, codeGuardAI, "Configures agent rules, sets AI rate limits,\nviews team analytics", "HTTPS")
+
+Rel(codeGuardAI, clerk, "Validates JWT tokens,\nretrieves user profile", "HTTPS / Clerk SDK")
+Rel(codeGuardAI, supabase, "Stores code reviews, findings,\nusers, AI usage metrics", "PostgreSQL Protocol (TLS)")
+Rel(codeGuardAI, vertexAI, "Generates AI explanations for\ncritical findings (Production)", "HTTPS / Vertex AI SDK")
+Rel(codeGuardAI, geminiFlash, "Generates AI explanations\n(Development)", "HTTPS / Google AI SDK")
+Rel(codeGuardAI, mcpServers, "Queries OWASP/CVE data,\nteam conventions", "MCP Protocol (stdio)")
+Rel(codeGuardAI, redis, "Caches AI explanations,\nsession data", "Redis Protocol (TLS)")
+
+Lay_D(developer, codeGuardAI)
+Lay_D(codeGuardAI, supabase)
+
+@enduml
