@@ -1,0 +1,272 @@
+@startuml uml-application-layer-services
+skinparam classAttributeIconSize 0
+skinparam classFontSize 11
+skinparam backgroundColor #FFFFFF
+skinparam class {
+  BackgroundColor #E7F5FF
+  BorderColor #1E40AF
+  ArrowColor #1E40AF
+}
+
+title Application Layer - Services Class Diagram
+
+' ============================================
+' CORE SERVICES
+' ============================================
+class AnalysisService {
+  - orchestrator: OrchestratorAgent
+  - review_repository: CodeReviewRepository
+  - finding_repository: AgentFindingRepository
+  - event_bus: EventBus
+  - auth_service: AuthenticationService
+  __
+  + analyze_code(file: UploadFile, user_id: str): AnalysisDTO
+  + get_review(review_id: UUID, user_id: str): CodeReviewDTO
+  + list_reviews(user_id: str, page: int, size: int): PaginatedReviewsDTO
+  + get_review_status(review_id: UUID): ReviewStatusDTO
+  + validate_file(file: UploadFile): bool
+  + check_rate_limit(user_id: str): bool
+  - _create_analysis_context(file: UploadFile, user_id: str): AnalysisContext
+  - _persist_results(review: CodeReview): void
+}
+
+class AuthenticationService {
+  - clerk_client: ClerkClient
+  - user_repository: UserRepository
+  - session_cache: RedisCache
+  __
+  + validate_jwt(token: str): Optional[User]
+  + check_role(user: User, required_role: Role) -> bool
+  + get_or_create_user(clerk_user_id: str): User
+  + check_rate_limit(user_id: str): RateLimitResult
+  + increment_usage(user_id: str): void
+  + get_user_quota(user_id: str): QuotaInfo
+  - _extract_claims(token: str): Dict
+  - _validate_token_expiry(claims: Dict): bool
+}
+
+class AIExplainerService {
+  - model: GenerativeModel
+  - mcp_enricher: MCPContextEnricher
+  - cache: RedisCache
+  - config: AIConfig
+  - rate_limiter: RateLimiter
+  __
+  + generate_explanation(finding: Finding): AIExplanation
+  + generate_batch_explanations(findings: List[Finding]): List[AIExplanation]
+  + build_prompt(finding: Finding, context: str): str
+  + parse_response(response: str): AIExplanation
+  + handle_rate_limit(): AIExplanation
+  + get_cached_explanation(cache_key: str): Optional[AIExplanation]
+  - _generate_cache_key(finding: Finding): str
+  - _select_model(environment: str): GenerativeModel
+  - _retry_with_backoff(func: Callable, max_retries: int): Any
+}
+
+class ExportService {
+  - review_repository: CodeReviewRepository
+  - finding_repository: AgentFindingRepository
+  - pdf_generator: PDFGenerator
+  - storage_client: StorageClient
+  __
+  + export_json(review_id: UUID, user_id: str): BytesIO
+  + export_pdf(review_id: UUID, user_id: str): BytesIO
+  + generate_team_report(user_ids: List[str], date_range: DateRange): BytesIO
+  - _format_json(review: CodeReview, findings: List[Finding]): Dict
+  - _generate_pdf_content(review: CodeReview, findings: List[Finding]): bytes
+  - _upload_to_storage(file_data: bytes, filename: str): str
+}
+
+' ============================================
+' SPECIALIZED SERVICES (Sprint 3-4)
+' ============================================
+class MCPContextEnricher {
+  - owasp_client: ClientSession
+  - cve_client: ClientSession
+  - custom_client: ClientSession
+  - timeout_seconds: int = 5
+  __
+  + enrich_context(finding: Finding): str
+  + query_owasp(cwe_id: str): Dict
+  + query_cve(cve_id: str): Dict
+  + query_custom_kb(issue_type: str): Dict
+  + format_mcp_context(responses: List[Dict]): str
+  - _parallel_query(queries: List[Callable]): List[Dict]
+  - _handle_mcp_error(server: str, error: Exception): Dict
+}
+
+class ConfigService {
+  - config_repository: ConfigRepository
+  - cache: RedisCache
+  - event_bus: EventBus
+  __
+  + get_agent_config(agent_type: str): AgentConfig
+  + update_agent_config(agent_type: str, config: AgentConfig, admin_id: str): void
+  + get_ai_config(): AIConfig
+  + update_ai_config(config: AIConfig, admin_id: str): void
+  + get_all_configs(): Dict[str, AgentConfig]
+  + invalidate_cache(): void
+  - _validate_config(config: AgentConfig): bool
+  - _emit_config_changed_event(config_type: str): void
+}
+
+class MetricsService {
+  - metrics_repository: MetricsRepository
+  - prometheus_client: PrometheusClient
+  __
+  + record_analysis_metrics(review: CodeReview, duration_ms: int): void
+  + record_ai_usage(model: str, tokens: int, cost: float): void
+  + get_team_metrics(team_id: str, date_range: DateRange): TeamMetricsDTO
+  + get_cost_metrics(date_range: DateRange): CostMetricsDTO
+  - _calculate_aggregates(metrics: List[Metric]): Dict
+}
+
+' ============================================
+' DTOs (Data Transfer Objects)
+' ============================================
+class AnalysisDTO {
+  + analysis_id: UUID
+  + quality_score: int
+  + total_findings: int
+  + findings_by_severity: Dict[str, int]
+  + status: str
+  + created_at: datetime
+  __
+  + to_dict(): Dict
+  + from_domain(review: CodeReview): AnalysisDTO
+}
+
+class CodeReviewDTO {
+  + id: UUID
+  + filename: str
+  + quality_score: int
+  + status: str
+  + findings: List[FindingDTO]
+  + created_at: datetime
+  + completed_at: Optional[datetime]
+  __
+  + to_dict(): Dict
+  + from_domain(review: CodeReview, findings: List[Finding]): CodeReviewDTO
+}
+
+class FindingDTO {
+  + id: UUID
+  + agent_type: str
+  + severity: str
+  + issue_type: str
+  + line_number: int
+  + message: str
+  + suggestion: str
+  + ai_explanation: Optional[AIExplanationDTO]
+  __
+  + to_dict(): Dict
+  + from_domain(finding: Finding): FindingDTO
+}
+
+class AIExplanationDTO {
+  + explanation: str
+  + attack_example: Optional[str]
+  + fix_code: Optional[str]
+  + cwe_reference: str
+  + owasp_category: str
+  __
+  + to_dict(): Dict
+  + from_domain(explanation: AIExplanation): AIExplanationDTO
+}
+
+class PaginatedReviewsDTO {
+  + items: List[CodeReviewDTO]
+  + total: int
+  + page: int
+  + size: int
+  + pages: int
+  __
+  + to_dict(): Dict
+}
+
+' ============================================
+' HELPER CLASSES
+' ============================================
+class RateLimiter {
+  - redis_client: Redis
+  - window_seconds: int
+  - max_requests: int
+  __
+  + check_limit(key: str): bool
+  + increment(key: str): int
+  + get_remaining(key: str): int
+  + reset(key: str): void
+}
+
+class PDFGenerator {
+  - template_path: str
+  - logo_path: str
+  __
+  + generate(review: CodeReview, findings: List[Finding]): bytes
+  - _render_template(data: Dict): str
+  - _convert_html_to_pdf(html: str): bytes
+}
+
+' ============================================
+' RELATIONSHIPS
+' ============================================
+AnalysisService --> OrchestratorAgent : uses
+AnalysisService --> CodeReviewRepository : persists via
+AnalysisService --> AgentFindingRepository : persists via
+AnalysisService --> EventBus : publishes to
+AnalysisService --> AuthenticationService : validates via
+AnalysisService ..> AnalysisDTO : returns
+AnalysisService ..> CodeReviewDTO : returns
+
+AuthenticationService --> ClerkClient : validates with
+AuthenticationService --> UserRepository : queries
+AuthenticationService --> RedisCache : caches sessions
+
+AIExplainerService --> MCPContextEnricher : enriches via
+AIExplainerService --> RedisCache : caches in
+AIExplainerService --> RateLimiter : limits via
+AIExplainerService ..> AIExplanation : produces
+
+ExportService --> CodeReviewRepository : fetches from
+ExportService --> FindingRepository : fetches from
+ExportService --> PDFGenerator : generates with
+
+ConfigService --> ConfigRepository : persists to
+ConfigService --> RedisCache : caches in
+ConfigService --> EventBus : emits to
+
+MetricsService --> MetricsRepository : records to
+MetricsService --> PrometheusClient : exports to
+
+' DTOs
+AnalysisDTO ..> CodeReview : from domain
+CodeReviewDTO ..> CodeReview : from domain
+CodeReviewDTO ..> Finding : from domain
+FindingDTO ..> Finding : from domain
+AIExplanationDTO ..> AIExplanation : from domain
+
+' ============================================
+' NOTES
+' ============================================
+note right of AnalysisService
+  **Main orchestrator service**
+  Coordinates entire analysis workflow
+  Enforces business rules
+  Transaction management
+end note
+
+note right of AIExplainerService
+  **Sprint 3 - AI Integration**
+  Gemini Flash (dev)
+  Vertex AI Pro (prod)
+  Rate limiting + caching
+end note
+
+note bottom of MCPContextEnricher
+  **Sprint 3 - MCP Integration**
+  Queries 3 MCP servers in parallel
+  Enriches AI prompts with context
+  Graceful degradation on failure
+end note
+
+@enduml

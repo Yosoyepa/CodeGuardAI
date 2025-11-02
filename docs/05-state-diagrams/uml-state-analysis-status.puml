@@ -1,0 +1,184 @@
+@startuml uml-state-analysis-status
+skinparam backgroundColor #FFFFFF
+skinparam state {
+  BackgroundColor<<waiting>> #E7F5FF
+  BackgroundColor<<processing>> #FEF3C7
+  BackgroundColor<<success>> #D1FAE5
+  BackgroundColor<<error>> #FEE2E2
+  BackgroundColor<<partial>> #FDE68A
+  BorderColor #1E40AF
+  FontSize 11
+}
+
+title State Diagram - Analysis Status (User Perspective)
+
+[*] --> SUBMITTED : User clicks "Analyze Code"
+
+state SUBMITTED <<waiting>> {
+  SUBMITTED : **User sees:**
+  SUBMITTED : "File uploaded successfully"
+  SUBMITTED : "Queued for analysis..."
+  SUBMITTED : 
+  SUBMITTED : **System:**
+  SUBMITTED : • File validated
+  SUBMITTED : • CodeReview entity created
+  SUBMITTED : • analysis_id generated
+}
+
+SUBMITTED --> IN_PROGRESS : Analysis starts\n(OrchestratorAgent invoked)
+
+state IN_PROGRESS <<processing>> {
+  IN_PROGRESS : **User sees:**
+  IN_PROGRESS : Real-time progress updates:
+  IN_PROGRESS : • "Security Agent: Running..." (25%)
+  IN_PROGRESS : • "Quality Agent: Running..." (50%)
+  IN_PROGRESS : • "Performance Agent: Running..." (75%)
+  IN_PROGRESS : • "Style Agent: Running..." (100%)
+  IN_PROGRESS : 
+  IN_PROGRESS : **System:**
+  IN_PROGRESS : • 4 agents executing in parallel
+  IN_PROGRESS : • WebSocket events streaming
+  IN_PROGRESS : • Progress bar animating
+  
+  state "Agent Progress" as Progress {
+    [*] --> Agent1
+    Agent1 : SecurityAgent\n(0% → 25%)
+    Agent1 --> Agent2
+    Agent2 : QualityAgent\n(25% → 50%)
+    Agent2 --> Agent3
+    Agent3 : PerformanceAgent\n(50% → 75%)
+    Agent3 --> Agent4
+    Agent4 : StyleAgent\n(75% → 100%)
+    Agent4 --> [*]
+  }
+}
+
+IN_PROGRESS --> COMPLETED : All agents complete\nAND no critical errors
+
+state COMPLETED <<success>> {
+  COMPLETED : **User sees:**
+  COMPLETED : "✅ Analysis Complete!"
+  COMPLETED : "Quality Score: 72/100"
+  COMPLETED : "11 issues found (1 critical)"
+  COMPLETED : [View Detailed Results button]
+  COMPLETED : 
+  COMPLETED : **System:**
+  COMPLETED : • Findings persisted to database
+  COMPLETED : • Quality score calculated
+  COMPLETED : • WebSocket sends final event
+  COMPLETED : • Results ready for viewing
+}
+
+IN_PROGRESS --> COMPLETED_WITH_WARNINGS : Some agents timed out\nBUT partial results available
+
+state COMPLETED_WITH_WARNINGS <<partial>> {
+  COMPLETED_WITH_WARNINGS : **User sees:**
+  COMPLETED_WITH_WARNINGS : "⚠️ Analysis Completed (with warnings)"
+  COMPLETED_WITH_WARNINGS : "Quality Score: 65/100 (partial)"
+  COMPLETED_WITH_WARNINGS : "8 issues found"
+  COMPLETED_WITH_WARNINGS : 
+  COMPLETED_WITH_WARNINGS : **Warning message:**
+  COMPLETED_WITH_WARNINGS : "SecurityAgent timed out. Results may be incomplete."
+  COMPLETED_WITH_WARNINGS : 
+  COMPLETED_WITH_WARNINGS : **System:**
+  COMPLETED_WITH_WARNINGS : • Partial findings saved
+  COMPLETED_WITH_WARNINGS : • Quality score marked as degraded
+  COMPLETED_WITH_WARNINGS : • User can still view results
+}
+
+IN_PROGRESS --> FAILED : Fatal error occurred\n(parse error, DB crash)
+
+state FAILED <<error>> {
+  FAILED : **User sees:**
+  FAILED : "❌ Analysis Failed"
+  FAILED : "We couldn't analyze your code."
+  FAILED : 
+  FAILED : **Error types:**
+  FAILED : • "Syntax Error: Invalid Python code"
+  FAILED : • "File Too Large: Exceeds 10MB limit"
+  FAILED : • "System Error: Please try again"
+  FAILED : 
+  FAILED : **Actions available:**
+  FAILED : [Retry Analysis button]
+  FAILED : [Upload Different File button]
+  FAILED : 
+  FAILED : **System:**
+  FAILED : • error_message stored
+  FAILED : • Admin notified (if critical)
+  FAILED : • Metrics logged
+}
+
+COMPLETED --> VIEWING_RESULTS : User clicks "View Results"
+COMPLETED_WITH_WARNINGS --> VIEWING_RESULTS : User clicks "View Results"
+
+state VIEWING_RESULTS {
+  VIEWING_RESULTS : **User sees:**
+  VIEWING_RESULTS : • Quality score visualization
+  VIEWING_RESULTS : • Findings table (sortable, filterable)
+  VIEWING_RESULTS : • Code viewer with line numbers
+  VIEWING_RESULTS : • AI explanations (expandable cards)
+  VIEWING_RESULTS : • Export options (JSON, PDF)
+  VIEWING_RESULTS : 
+  VIEWING_RESULTS : **User actions:**
+  VIEWING_RESULTS : • Filter by severity
+  VIEWING_RESULTS : • Filter by agent
+  VIEWING_RESULTS : • Click finding → view detail modal
+  VIEWING_RESULTS : • Export report
+}
+
+VIEWING_RESULTS --> EXPORTED : User exports report
+
+state EXPORTED {
+  EXPORTED : **User sees:**
+  EXPORTED : "Report downloaded successfully"
+  EXPORTED : 
+  EXPORTED : **Formats:**
+  EXPORTED : • JSON: codereview_123.json
+  EXPORTED : • PDF: codereview_123.pdf (with AI explanations)
+}
+
+FAILED --> SUBMITTED : User clicks "Retry"
+EXPORTED --> [*] : Session ends
+VIEWING_RESULTS --> [*] : User navigates away
+
+note right of SUBMITTED
+  **Initial State:**
+  • File uploaded to server
+  • Validation passed
+  • Waiting in queue
+  • Duration: <100ms
+end note
+
+note right of IN_PROGRESS
+  **Active State:**
+  • Real-time WebSocket updates
+  • Progress bar: 0% → 100%
+  • Agent status cards updating
+  • Duration: 3-8 seconds (typical)
+end note
+
+note bottom of COMPLETED
+  **Success State (Terminal):**
+  • User can view results
+  • Can export report
+  • Can analyze another file
+  • Results cached for 24 hours
+end note
+
+note bottom of COMPLETED_WITH_WARNINGS
+  **Partial Success State:**
+  • Some agents timed out
+  • Partial results available
+  • Quality score marked as degraded
+  • User warned but can proceed
+end note
+
+note right of FAILED
+  **Error State (Terminal):**
+  • Analysis cannot proceed
+  • User can retry or upload new file
+  • Admin notified if ≥3 failures/hour
+  • Error logged to monitoring system
+end note
+
+@enduml

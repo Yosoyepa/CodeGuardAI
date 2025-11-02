@@ -1,0 +1,231 @@
+@startuml uml-seq-websocket-real-time-progress
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam backgroundColor #FFFFFF
+
+title Sequence Diagram - WebSocket Real-Time Progress Updates
+
+actor "Developer" as Dev
+participant "Frontend\n(React)" as FE
+participant "WebSocket Client" as WSClient
+participant "WebSocket Server\n(FastAPI)" as WSServer
+participant "EventBus" as EventBus
+participant "OrchestratorAgent" as Orch
+participant "SecurityAgent" as SecAgent
+participant "QualityAgent" as QualAgent
+
+Dev -> FE: Upload file, click "Analyze"
+activate FE
+
+FE -> FE: POST /api/v1/analyze\nReceive analysis_id
+
+FE -> FE: Redirect to Progress page\n/progress/{analysis_id}
+
+FE -> WSClient: Connect to WebSocket\nws://api.codeguard.ai/ws/{analysis_id}
+activate WSClient
+
+WSClient -> WSServer: WebSocket handshake
+activate WSServer
+
+WSServer -> WSServer: Authenticate connection:\nVerify JWT from query params
+
+alt Invalid JWT
+    WSServer --> WSClient: Close connection\n(code 4001, reason: "Unauthorized")
+    deactivate WSServer
+else Valid JWT
+    WSServer -> WSServer: Store connection:\nconnections[analysis_id] = websocket
+    
+    WSServer -> EventBus: Subscribe as WebSocketObserver\nfor analysis_id
+    activate EventBus
+    EventBus --> WSServer: Subscription confirmed
+    deactivate EventBus
+    
+    WSServer --> WSClient: Connection established (101 Switching Protocols)
+    
+    WSClient -> WSClient: Set connection status:\nisConnected = true
+    
+    WSClient --> FE: onopen() callback\n"Connected to server"
+    
+    FE -> FE: Display:\n"Waiting for analysis to start..."
+    deactivate WSClient
+    deactivate FE
+end
+
+== Analysis Starts ==
+
+-> Orch: orchestrate_analysis(context) invoked
+activate Orch
+
+Orch -> EventBus: publish(ANALYSIS_STARTED,\n  analysis_id=123,\n  filename="app.py",\n  timestamp=now())
+activate EventBus
+
+EventBus -> WSServer: notify(ANALYSIS_STARTED)
+activate WSServer
+
+WSServer -> WSServer: Format WebSocket message:\n{\n  "event_type": "ANALYSIS_STARTED",\n  "analysis_id": "123",\n  "filename": "app.py",\n  "timestamp": "2025-11-02T06:20:00Z",\n  "progress_percent": 0\n}
+
+WSServer -> WSClient: Send WebSocket message
+activate WSClient
+deactivate WSServer
+
+WSClient -> FE: onmessage() callback
+activate FE
+
+FE -> FE: Update state:\n• status = "PROCESSING"\n• progress = 0%
+
+FE -> FE: Display:\n"Analysis started for app.py"\n[Progress bar: 0%]
+
+deactivate FE
+deactivate WSClient
+deactivate EventBus
+
+== Agent 1: SecurityAgent ==
+
+Orch -> SecAgent: analyze(context)
+activate SecAgent
+
+SecAgent -> EventBus: publish(AGENT_STARTED,\n  agent_name="SecurityAgent")
+activate EventBus
+
+EventBus -> WSServer: notify(AGENT_STARTED)
+activate WSServer
+WSServer -> WSClient: Send: {"event_type": "AGENT_STARTED", "agent": "SecurityAgent"}
+activate WSClient
+WSClient -> FE: Update UI:\n"🔒 Security Agent running..."
+activate FE
+deactivate FE
+deactivate WSClient
+deactivate WSServer
+deactivate EventBus
+
+SecAgent -> SecAgent: Execute analysis\n(~3 seconds)
+
+SecAgent -> EventBus: publish(AGENT_COMPLETED,\n  agent_name="SecurityAgent",\n  findings_count=3,\n  progress_percent=25)
+activate EventBus
+
+EventBus -> WSServer: notify(AGENT_COMPLETED)
+activate WSServer
+WSServer -> WSClient: Send:\n{\n  "event_type": "AGENT_COMPLETED",\n  "agent": "SecurityAgent",\n  "findings_count": 3,\n  "progress_percent": 25,\n  "execution_time_ms": 3200\n}
+activate WSClient
+WSClient -> FE: Update:\n"✅ Security Agent: 3 issues found"\n[Progress bar: 25%]
+activate FE
+FE -> FE: Render agent card:\n🔒 SecurityAgent\nStatus: ✅ Completed\nFindings: 3\nTime: 3.2s
+deactivate FE
+deactivate WSClient
+deactivate WSServer
+deactivate EventBus
+
+SecAgent --> Orch: findings list
+deactivate SecAgent
+
+== Agent 2: QualityAgent (Parallel) ==
+
+Orch -> QualAgent: analyze(context)
+activate QualAgent
+
+QualAgent -> EventBus: publish(AGENT_STARTED,\n  agent_name="QualityAgent")
+activate EventBus
+EventBus -> WSServer: notify(AGENT_STARTED)
+activate WSServer
+WSServer -> WSClient: Send: {"event_type": "AGENT_STARTED", "agent": "QualityAgent"}
+activate WSClient
+WSClient -> FE: Update: "📊 Quality Agent running..."
+activate FE
+deactivate FE
+deactivate WSClient
+deactivate WSServer
+deactivate EventBus
+
+QualAgent -> QualAgent: Execute analysis\n(~2.5 seconds)
+
+QualAgent -> EventBus: publish(AGENT_COMPLETED,\n  agent_name="QualityAgent",\n  findings_count=5,\n  progress_percent=50)
+activate EventBus
+EventBus -> WSServer: notify(AGENT_COMPLETED)
+activate WSServer
+WSServer -> WSClient: Send:\n{"event_type": "AGENT_COMPLETED", "agent": "QualityAgent", ...}
+activate WSClient
+WSClient -> FE: Update:\n"✅ Quality Agent: 5 issues found"\n[Progress bar: 50%]
+activate FE
+deactivate FE
+deactivate WSClient
+deactivate WSServer
+deactivate EventBus
+
+QualAgent --> Orch: findings list
+deactivate QualAgent
+
+note over Orch, QualAgent
+  PerformanceAgent and StyleAgent
+  also execute in parallel
+  (similar event flow)
+  Progress: 75%, 100%
+end note
+
+== Analysis Complete ==
+
+Orch -> Orch: Aggregate findings:\ntotal_findings = 11\nquality_score = 72
+
+Orch -> EventBus: publish(ANALYSIS_COMPLETED,\n  analysis_id=123,\n  quality_score=72,\n  total_findings=11,\n  has_critical=true)
+activate EventBus
+
+EventBus -> WSServer: notify(ANALYSIS_COMPLETED)
+activate WSServer
+
+WSServer -> WSServer: Format final message:\n{\n  "event_type": "ANALYSIS_COMPLETED",\n  "analysis_id": "123",\n  "quality_score": 72,\n  "total_findings": 11,\n  "has_critical": true,\n  "completed_at": "2025-11-02T06:20:12Z",\n  "progress_percent": 100\n}
+
+WSServer -> WSClient: Send WebSocket message
+activate WSClient
+deactivate WSServer
+
+WSClient -> FE: onmessage() callback
+activate FE
+
+FE -> FE: Update state:\n• status = "COMPLETED"\n• progress = 100%\n• quality_score = 72
+
+FE -> FE: Display:\n"✅ Analysis Complete!"\n"Quality Score: 72/100"\n"11 issues found (1 critical)"\n[Button: View Detailed Results]
+
+deactivate FE
+
+WSClient -> WSClient: Close WebSocket connection\n(analysis complete)
+
+WSClient -> WSServer: Close handshake
+activate WSServer
+WSServer -> EventBus: Unsubscribe WebSocketObserver
+activate EventBus
+EventBus --> WSServer: Unsubscribed
+deactivate EventBus
+WSServer -> WSServer: Remove from connections:\ndel connections[analysis_id]
+deactivate WSServer
+
+deactivate WSClient
+deactivate EventBus
+deactivate Orch
+
+== User Views Results ==
+
+Dev -> FE: Click "View Detailed Results"
+activate FE
+
+FE -> FE: Navigate to:\n/results/{analysis_id}
+
+FE -> FE: Fetch full data via REST API:\nGET /api/v1/reviews/{analysis_id}
+
+FE --> Dev: Display Results Dashboard\n(quality score, findings table, charts)
+deactivate FE
+
+note right of WSServer
+  **WebSocket Event Types:**
+  • ANALYSIS_STARTED (progress: 0%)
+  • AGENT_STARTED (per agent)
+  • AGENT_COMPLETED (progress: 25%, 50%, 75%, 100%)
+  • ANALYSIS_COMPLETED (final results)
+  • ANALYSIS_FAILED (on error)
+  
+  **Connection Management:**
+  • JWT authentication required
+  • Automatic reconnection on disconnect
+  • Heartbeat ping/pong every 30s
+  • Close connection after completion
+end note
+
+@enduml

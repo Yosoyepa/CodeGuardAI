@@ -1,0 +1,339 @@
+// =============================================
+// CodeGuard AI - Complete Database Schema
+// Entity-Relationship Diagram (dbdiagram.io)
+// Created: November 2, 2025
+// =============================================
+
+Project CodeGuardAI {
+  database_type: 'PostgreSQL'
+  Note: '''
+    # CodeGuard AI Database
+    Multi-agent code review system with AI-powered explanations
+    - Supabase PostgreSQL 15
+    - Row-level security enabled
+    - AES-256 encryption for sensitive data
+  '''
+}
+
+// =============================================
+// USERS & AUTHENTICATION
+// =============================================
+Table users {
+  id varchar(255) [pk, note: 'Clerk user_id (OAuth)']
+  email varchar(255) [unique, not null, note: 'Unique email address']
+  name varchar(255) [note: 'Full name']
+  avatar_url varchar(500) [note: 'Profile picture URL']
+  role user_role [default: 'DEVELOPER', note: 'DEVELOPER or ADMIN']
+  daily_analysis_count integer [default: 0, note: 'Counter for rate limiting']
+  last_analysis_date date [note: 'Last analysis date for quota reset']
+  created_at timestamp [default: `now()`, note: 'Account creation timestamp']
+  updated_at timestamp [default: `now()`, note: 'Last update timestamp']
+  
+  indexes {
+    email
+    role
+    (last_analysis_date, daily_analysis_count)
+  }
+  
+  Note: 'Central user management linked to Clerk OAuth provider'
+}
+
+// =============================================
+// CODE REVIEWS (Aggregate Root)
+// =============================================
+Table code_reviews {
+  id uuid [pk, default: `gen_random_uuid()`, note: 'Unique analysis ID']
+  user_id varchar(255) [not null, note: 'Foreign key to users.id']
+  filename varchar(500) [not null, note: 'Original filename (e.g., app.py)']
+  code_content bytea [not null, note: 'Encrypted with AES-256-GCM']
+  quality_score integer [note: 'Range: 0-100, calculated from penalties']
+  status review_status [default: 'PENDING', note: 'PENDING, PROCESSING, COMPLETED, FAILED']
+  total_findings integer [default: 0, note: 'COUNT(agent_findings)']
+  error_message text [note: 'If status=FAILED, contains error details']
+  created_at timestamp [default: `now()`, note: 'Analysis submission time']
+  completed_at timestamp [note: 'Analysis completion time']
+  
+  indexes {
+    user_id
+    status
+    created_at [name: 'idx_reviews_created_desc']
+    (user_id, status)
+    (user_id, created_at)
+  }
+  
+  Note: '''
+    Main analysis sessions. Encrypted code storage with quality score tracking.
+    Constraint: CHECK (quality_score >= 0 AND quality_score <= 100)
+  '''
+}
+
+// =============================================
+// AGENT FINDINGS
+// =============================================
+Table agent_findings {
+  id uuid [pk, default: `gen_random_uuid()`]
+  review_id uuid [not null, note: 'Foreign key to code_reviews.id']
+  agent_type varchar(100) [not null, note: 'SecurityAgent, QualityAgent, PerformanceAgent, StyleAgent']
+  severity finding_severity [not null, note: 'CRITICAL, HIGH, MEDIUM, LOW']
+  issue_type varchar(200) [not null, note: 'eval_usage, sql_injection, cyclomatic_complexity, etc.']
+  line_number integer [not null, note: 'Line number where issue was found']
+  code_snippet text [note: 'Code excerpt showing the issue']
+  message text [not null, note: 'Human-readable issue description']
+  suggestion text [note: 'Recommended fix or mitigation']
+  metrics jsonb [note: 'Agent-specific metrics: {"complexity": 15, "duplication": 0.22}']
+  ai_explanation jsonb [note: 'Sprint 3: {explanation, attack_example, fix_code, cwe_ref, owasp, model_used, confidence}']
+  mcp_references text[] [note: 'Sprint 3: References to MCP server responses (URLs or IDs)']
+  created_at timestamp [default: `now()`]
+  
+  indexes {
+    review_id
+    severity
+    agent_type
+    line_number
+    (review_id, severity)
+    (review_id, agent_type)
+  }
+  
+  Note: '''
+    Individual vulnerability/issue findings from agents.
+    AI explanations added in Sprint 3 via Gemini API.
+    MCP context enrichment from OWASP, CVE, Custom KB servers.
+  '''
+}
+
+// =============================================
+// AGENT CONFIGURATIONS (Sprint 4)
+// =============================================
+Table agent_configs {
+  id uuid [pk, default: `gen_random_uuid()`]
+  agent_type varchar(100) [unique, not null, note: 'SecurityAgent, QualityAgent, etc.']
+  is_enabled boolean [default: true, note: 'Enable/disable agent']
+  config_json jsonb [not null, note: 'Agent-specific config: {threshold: 10, rules: ["detect_eval", "detect_sql"]}']
+  updated_by varchar(255) [note: 'Admin user_id who last updated']
+  updated_at timestamp [default: `now()`]
+  
+  indexes {
+    agent_type
+    is_enabled
+  }
+  
+  Note: '''
+    Configuration per agent. Admins can enable/disable agents and set thresholds.
+    Example config_json: {"complexity_threshold": 10, "enable_ai": true, "custom_rules": [...]}
+  '''
+}
+
+// =============================================
+// AI CONFIGURATION (Sprint 3)
+// =============================================
+Table ai_config {
+  id uuid [pk, default: `gen_random_uuid()`]
+  ai_enabled boolean [default: true, note: 'Global AI explanations toggle']
+  model_type ai_model [default: 'GEMINI_FLASH', note: 'GEMINI_FLASH or VERTEX_AI_PRO']
+  rate_limit_daily integer [default: 100, note: 'Max AI requests per day']
+  budget_threshold_usd decimal(10, 2) [default: 150.00, note: 'Alert threshold for AI costs']
+  current_spend_usd decimal(10, 6) [default: 0.00, note: 'Current month AI spend']
+  updated_by varchar(255) [note: 'Admin user_id who last updated']
+  updated_at timestamp [default: `now()`]
+  
+  indexes {
+    ai_enabled
+  }
+  
+  Note: '''
+    Global AI settings. Admins control model selection, rate limits, and budget.
+    Single row table (enforced by application logic).
+  '''
+}
+
+// =============================================
+// AI USAGE METRICS (Sprint 3)
+// =============================================
+Table ai_usage_metrics {
+  id bigserial [pk]
+  review_id uuid [note: 'Foreign key to code_reviews.id']
+  model_used varchar(100) [note: 'gemini-1.5-flash, gemini-1.5-pro, vertex-ai-gemini-pro']
+  prompt_tokens integer [note: 'Input tokens consumed']
+  completion_tokens integer [note: 'Output tokens generated']
+  total_tokens integer [note: 'prompt_tokens + completion_tokens']
+  cost_usd decimal(10, 6) [note: 'Cost in USD (calculated from pricing)']
+  latency_ms integer [note: 'API response time in milliseconds']
+  cache_hit boolean [default: false, note: 'True if explanation retrieved from Redis cache']
+  created_at timestamp [default: `now()`]
+  
+  indexes {
+    review_id
+    created_at [name: 'idx_ai_metrics_created_desc']
+    model_used
+    cache_hit
+    (created_at, model_used)
+  }
+  
+  Note: '''
+    AI API usage tracking for cost analysis and performance monitoring.
+    Used to calculate current_spend_usd in ai_config table.
+  '''
+}
+
+// =============================================
+// MCP CONTEXT LOGS (Sprint 3)
+// =============================================
+Table mcp_context_logs {
+  id bigserial [pk]
+  finding_id uuid [note: 'Foreign key to agent_findings.id']
+  mcp_server varchar(100) [note: 'owasp-mcp, cve-mcp, custom-kb-mcp']
+  query text [note: 'Query sent to MCP server (e.g., CWE ID lookup)']
+  response jsonb [note: 'MCP server JSON response']
+  latency_ms integer [note: 'Query response time']
+  success boolean [default: true, note: 'False if MCP query failed']
+  error_message text [note: 'If success=false, contains error details']
+  created_at timestamp [default: `now()`]
+  
+  indexes {
+    finding_id
+    mcp_server
+    created_at
+    success
+    (mcp_server, success)
+  }
+  
+  Note: '''
+    Model Context Protocol server query logs.
+    Tracks performance and success rate of MCP integrations.
+  '''
+}
+
+// =============================================
+// EVENT LOGS (Audit Trail)
+// =============================================
+Table event_logs {
+  id bigserial [pk]
+  review_id uuid [note: 'Foreign key to code_reviews.id']
+  event_type varchar(100) [not null, note: 'ANALYSIS_STARTED, AGENT_COMPLETED, ANALYSIS_COMPLETED, ANALYSIS_FAILED, CONFIG_UPDATED']
+  agent_name varchar(100) [note: 'If event_type is AGENT_*, contains agent name']
+  event_data jsonb [note: 'Additional data: {findings_count: 3, progress_percent: 25, execution_time_ms: 3200}']
+  created_at timestamp [default: `now()`]
+  
+  indexes {
+    review_id
+    event_type
+    created_at [name: 'idx_events_created_desc']
+    (review_id, event_type)
+  }
+  
+  Note: '''
+    Analysis event timeline for progress tracking and debugging.
+    Used for WebSocket real-time updates and audit trail.
+  '''
+}
+
+// =============================================
+// ANALYSIS EXPORT LOGS (Compliance)
+// =============================================
+Table analysis_export_logs {
+  id uuid [pk, default: `gen_random_uuid()`]
+  review_id uuid [not null, note: 'Foreign key to code_reviews.id']
+  user_id varchar(255) [not null, note: 'Foreign key to users.id']
+  export_format export_format [not null, note: 'JSON or PDF']
+  file_path varchar(500) [note: 'S3 path or local file path']
+  file_size_bytes integer [note: 'Size of exported file']
+  created_at timestamp [default: `now()`]
+  
+  indexes {
+    user_id
+    review_id
+    created_at [name: 'idx_exports_created_desc']
+  }
+  
+  Note: '''
+    Export audit trail for compliance tracking.
+    Tracks who exported which analysis and when.
+  '''
+}
+
+// =============================================
+// ENUMS
+// =============================================
+Enum user_role {
+  DEVELOPER
+  ADMIN
+}
+
+Enum review_status {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+Enum finding_severity {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+}
+
+Enum ai_model {
+  GEMINI_FLASH
+  VERTEX_AI_PRO
+}
+
+Enum export_format {
+  JSON
+  PDF
+}
+
+// =============================================
+// RELATIONSHIPS
+// =============================================
+
+// Users → Code Reviews (1:N)
+Ref: code_reviews.user_id > users.id [delete: cascade, update: cascade]
+
+// Code Reviews → Findings (1:N)
+Ref: agent_findings.review_id > code_reviews.id [delete: cascade, update: cascade]
+
+// Agent Configs → Users (N:1)
+Ref: agent_configs.updated_by > users.id [delete: set null, update: cascade]
+
+// AI Config → Users (N:1)
+Ref: ai_config.updated_by > users.id [delete: set null, update: cascade]
+
+// AI Usage Metrics → Code Reviews (N:1)
+Ref: ai_usage_metrics.review_id > code_reviews.id [delete: cascade, update: cascade]
+
+// MCP Context Logs → Findings (N:1)
+Ref: mcp_context_logs.finding_id > agent_findings.id [delete: cascade, update: cascade]
+
+// Event Logs → Code Reviews (N:1)
+Ref: event_logs.review_id > code_reviews.id [delete: cascade, update: cascade]
+
+// Export Logs → Code Reviews (N:1)
+Ref: analysis_export_logs.review_id > code_reviews.id [delete: cascade, update: cascade]
+
+// Export Logs → Users (N:1)
+Ref: analysis_export_logs.user_id > users.id [delete: cascade, update: cascade]
+
+// =============================================
+// TABLE GROUPS (Visual Organization)
+// =============================================
+TableGroup "Core Domain" {
+  users
+  code_reviews
+  agent_findings
+}
+
+TableGroup "Configuration (Sprint 4)" {
+  agent_configs
+  ai_config
+}
+
+TableGroup "AI/MCP Integration (Sprint 3)" {
+  ai_usage_metrics
+  mcp_context_logs
+}
+
+TableGroup "Audit & Compliance" {
+  event_logs
+  analysis_export_logs
+}

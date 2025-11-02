@@ -1,0 +1,211 @@
+@startuml er-diagram-complete
+!define Table(name,desc) class name as "desc" << (T,#FFAAAA) >>
+!define primary_key(x) <b>PK: x</b>
+!define foreign_key(x) <i>FK: x</i>
+!define unique(x) <u>x</u>
+
+skinparam backgroundColor #FFFFFF
+skinparam class {
+  BackgroundColor #E7F5FF
+  BorderColor #1E40AF
+  ArrowColor #059669
+}
+
+title Entity-Relationship Diagram - CodeGuard AI Database
+
+' =============================================
+' ENTITIES
+' =============================================
+
+class users {
+  primary_key(id): VARCHAR(255)
+  unique(email): VARCHAR(255)
+  name: VARCHAR(255)
+  avatar_url: VARCHAR(500)
+  role: ENUM('DEVELOPER', 'ADMIN')
+  daily_analysis_count: INTEGER
+  last_analysis_date: DATE
+  created_at: TIMESTAMP
+  updated_at: TIMESTAMP
+  --
+  Indexes:
+  • idx_users_email
+  • idx_users_role
+}
+
+class code_reviews {
+  primary_key(id): UUID
+  foreign_key(user_id): VARCHAR(255)
+  filename: VARCHAR(500)
+  code_content: BYTEA (encrypted)
+  quality_score: INTEGER (0-100)
+  status: ENUM
+  total_findings: INTEGER
+  error_message: TEXT
+  created_at: TIMESTAMP
+  completed_at: TIMESTAMP
+  --
+  Indexes:
+  • idx_reviews_user_id
+  • idx_reviews_status
+  • idx_reviews_created_desc
+  --
+  Constraints:
+  CHECK (quality_score >= 0 AND quality_score <= 100)
+}
+
+class agent_findings {
+  primary_key(id): UUID
+  foreign_key(review_id): UUID
+  agent_type: VARCHAR(100)
+  severity: ENUM
+  issue_type: VARCHAR(200)
+  line_number: INTEGER
+  code_snippet: TEXT
+  message: TEXT
+  suggestion: TEXT
+  metrics: JSONB
+  ai_explanation: JSONB
+  mcp_references: TEXT[]
+  created_at: TIMESTAMP
+  --
+  Indexes:
+  • idx_findings_review_id
+  • idx_findings_severity
+  • idx_findings_agent_type
+}
+
+class agent_configs {
+  primary_key(id): UUID
+  unique(agent_type): VARCHAR(100)
+  is_enabled: BOOLEAN
+  config_json: JSONB
+  foreign_key(updated_by): VARCHAR(255)
+  updated_at: TIMESTAMP
+  --
+  Indexes:
+  • idx_configs_agent_type
+}
+
+class ai_config {
+  primary_key(id): UUID
+  ai_enabled: BOOLEAN
+  model_type: ENUM
+  rate_limit_daily: INTEGER
+  budget_threshold_usd: DECIMAL(10,2)
+  current_spend_usd: DECIMAL(10,6)
+  foreign_key(updated_by): VARCHAR(255)
+  updated_at: TIMESTAMP
+  --
+  Note: Single row table
+}
+
+class ai_usage_metrics {
+  primary_key(id): BIGSERIAL
+  foreign_key(review_id): UUID
+  model_used: VARCHAR(100)
+  prompt_tokens: INTEGER
+  completion_tokens: INTEGER
+  total_tokens: INTEGER
+  cost_usd: DECIMAL(10,6)
+  latency_ms: INTEGER
+  cache_hit: BOOLEAN
+  created_at: TIMESTAMP
+  --
+  Indexes:
+  • idx_metrics_review_id
+  • idx_metrics_created_desc
+}
+
+class mcp_context_logs {
+  primary_key(id): BIGSERIAL
+  foreign_key(finding_id): UUID
+  mcp_server: VARCHAR(100)
+  query: TEXT
+  response: JSONB
+  latency_ms: INTEGER
+  success: BOOLEAN
+  error_message: TEXT
+  created_at: TIMESTAMP
+  --
+  Indexes:
+  • idx_mcp_finding_id
+  • idx_mcp_server
+}
+
+class event_logs {
+  primary_key(id): BIGSERIAL
+  foreign_key(review_id): UUID
+  event_type: VARCHAR(100)
+  agent_name: VARCHAR(100)
+  event_data: JSONB
+  created_at: TIMESTAMP
+  --
+  Indexes:
+  • idx_events_review_id
+  • idx_events_type
+}
+
+class analysis_export_logs {
+  primary_key(id): UUID
+  foreign_key(review_id): UUID
+  foreign_key(user_id): VARCHAR(255)
+  export_format: ENUM('JSON', 'PDF')
+  file_path: VARCHAR(500)
+  file_size_bytes: INTEGER
+  created_at: TIMESTAMP
+  --
+  Indexes:
+  • idx_exports_user_id
+  • idx_exports_review_id
+}
+
+' =============================================
+' RELATIONSHIPS
+' =============================================
+
+users "1" --> "0..*" code_reviews : creates
+users "1" --> "0..*" analysis_export_logs : exports
+users "1" --> "0..*" agent_configs : updates
+users "1" --> "0..*" ai_config : updates
+
+code_reviews "1" --> "0..*" agent_findings : contains
+code_reviews "1" --> "0..*" ai_usage_metrics : has
+code_reviews "1" --> "0..*" event_logs : tracks
+code_reviews "1" --> "0..*" analysis_export_logs : exported as
+
+agent_findings "1" --> "0..*" mcp_context_logs : enriched by
+
+' =============================================
+' NOTES
+' =============================================
+
+note right of users
+  **Central User Management**
+  • Linked to Clerk OAuth
+  • Role-based access control
+  • Daily quota tracking
+end note
+
+note right of code_reviews
+  **Aggregate Root**
+  • Encrypted code storage (AES-256)
+  • Quality score 0-100
+  • Status: PENDING → PROCESSING → COMPLETED/FAILED
+end note
+
+note bottom of agent_findings
+  **Sprint 3: AI Integration**
+  • ai_explanation: Gemini-generated
+  • mcp_references: OWASP/CVE/Custom KB
+  • Metrics: agent-specific JSON
+end note
+
+note right of ai_usage_metrics
+  **Cost Tracking**
+  • Tracks every AI API call
+  • Calculates current_spend_usd
+  • Monitors cache hit rate
+end note
+
+@enduml

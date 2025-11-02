@@ -1,0 +1,352 @@
+@startuml uml-infrastructure-layer-repositories
+skinparam classAttributeIconSize 0
+skinparam classFontSize 11
+skinparam backgroundColor #FFFFFF
+skinparam class {
+  BackgroundColor #F0FFF4
+  BorderColor #059669
+  ArrowColor #059669
+}
+
+title Infrastructure Layer - Repositories & External Services
+
+' ============================================
+' REPOSITORY INTERFACES (Ports)
+' ============================================
+interface ICodeReviewRepository {
+  + create(review: CodeReview): CodeReview
+  + find_by_id(review_id: UUID): Optional[CodeReview]
+  + find_by_user(user_id: str, filters: Dict): List[CodeReview]
+  + update_status(review_id: UUID, status: ReviewStatus): void
+  + delete(review_id: UUID): void
+}
+
+interface IAgentFindingRepository {
+  + create_batch(findings: List[Finding], review_id: UUID): void
+  + find_by_review(review_id: UUID): List[Finding]
+  + find_by_severity(review_id: UUID, severity: Severity): List[Finding]
+  + count_by_agent(review_id: UUID): Dict[str, int]
+}
+
+interface IUserRepository {
+  + create(user: User): User
+  + find_by_id(user_id: str): Optional[User]
+  + find_by_email(email: str): Optional[User]
+  + update_quota(user_id: str, count: int): void
+  + get_daily_usage(user_id: str): int
+}
+
+interface IConfigRepository {
+  + save_agent_config(agent_type: str, config: AgentConfig): void
+  + get_agent_config(agent_type: str): Optional[AgentConfig]
+  + get_all_configs(): Dict[str, AgentConfig]
+  + save_ai_config(config: AIConfig): void
+  + get_ai_config(): Optional[AIConfig]
+}
+
+' ============================================
+' REPOSITORY IMPLEMENTATIONS (Adapters)
+' ============================================
+class CodeReviewRepository {
+  - session: Session
+  - encryptor: AESEncryptor
+  - logger: Logger
+  __
+  + create(review: CodeReview): CodeReview
+  + find_by_id(review_id: UUID): Optional[CodeReview]
+  + find_by_user(user_id: str, filters: Dict): List[CodeReview]
+  + update_status(review_id: UUID, status: ReviewStatus): void
+  + delete(review_id: UUID): void
+  - _encrypt_code_content(code: str): bytes
+  - _decrypt_code_content(encrypted: bytes): str
+  - _to_domain(entity: CodeReviewEntity): CodeReview
+  - _to_entity(review: CodeReview): CodeReviewEntity
+}
+
+class AgentFindingRepository {
+  - session: Session
+  - logger: Logger
+  __
+  + create_batch(findings: List[Finding], review_id: UUID): void
+  + find_by_review(review_id: UUID): List[Finding]
+  + find_by_severity(review_id: UUID, severity: Severity): List[Finding]
+  + count_by_agent(review_id: UUID): Dict[str, int]
+  - _to_domain(entity: AgentFindingEntity): Finding
+  - _to_entity(finding: Finding, review_id: UUID): AgentFindingEntity
+}
+
+class UserRepository {
+  - session: Session
+  - logger: Logger
+  __
+  + create(user: User): User
+  + find_by_id(user_id: str): Optional[User]
+  + find_by_email(email: str): Optional[User]
+  + update_quota(user_id: str, count: int): void
+  + get_daily_usage(user_id: str): int
+  - _to_domain(entity: UserEntity): User
+  - _to_entity(user: User): UserEntity
+}
+
+class ConfigRepository {
+  - session: Session
+  - cache: RedisCache
+  - logger: Logger
+  __
+  + save_agent_config(agent_type: str, config: AgentConfig): void
+  + get_agent_config(agent_type: str): Optional[AgentConfig]
+  + get_all_configs(): Dict[str, AgentConfig]
+  + save_ai_config(config: AIConfig): void
+  + get_ai_config(): Optional[AIConfig]
+  - _invalidate_cache(key: str): void
+}
+
+class MetricsRepository {
+  - session: Session
+  __
+  + record_ai_usage(review_id: UUID, metrics: AIUsageMetrics): void
+  + record_mcp_log(finding_id: UUID, log: MCPContextLog): void
+  + get_cost_metrics(date_range: DateRange): List[AIUsageMetrics]
+  + get_team_metrics(user_ids: List[str], date_range: DateRange): Dict
+}
+
+' ============================================
+' ORM ENTITIES (SQLAlchemy Models)
+' ============================================
+class CodeReviewEntity {
+  __tablename__ = "code_reviews"
+  __
+  + id: Column(UUID, primary_key=True)
+  + user_id: Column(String, ForeignKey("users.id"))
+  + filename: Column(String)
+  + code_content: Column(LargeBinary, encrypted=True)
+  + quality_score: Column(Integer)
+  + status: Column(Enum(ReviewStatus))
+  + total_findings: Column(Integer)
+  + error_message: Column(Text, nullable=True)
+  + created_at: Column(DateTime)
+  + completed_at: Column(DateTime, nullable=True)
+  __
+  # Relationships
+  + findings: relationship("AgentFindingEntity", back_populates="review", cascade="all, delete-orphan")
+  + user: relationship("UserEntity", back_populates="reviews")
+}
+
+class AgentFindingEntity {
+  __tablename__ = "agent_findings"
+  __
+  + id: Column(UUID, primary_key=True)
+  + review_id: Column(UUID, ForeignKey("code_reviews.id"))
+  + agent_type: Column(String)
+  + severity: Column(Enum(Severity))
+  + issue_type: Column(String)
+  + line_number: Column(Integer)
+  + code_snippet: Column(Text)
+  + message: Column(Text)
+  + suggestion: Column(Text)
+  + metrics: Column(JSON)
+  + ai_explanation: Column(JSON, nullable=True)
+  + mcp_references: Column(ARRAY(String), nullable=True)
+  + created_at: Column(DateTime)
+  __
+  # Relationships
+  + review: relationship("CodeReviewEntity", back_populates="findings")
+  __
+  # Indexes
+  Index("ix_findings_review_id", "review_id")
+  Index("ix_findings_severity", "severity")
+}
+
+class UserEntity {
+  __tablename__ = "users"
+  __
+  + id: Column(String, primary_key=True)
+  + email: Column(String, unique=True)
+  + name: Column(String)
+  + avatar_url: Column(String)
+  + role: Column(Enum(Role))
+  + daily_analysis_count: Column(Integer, default=0)
+  + last_analysis_date: Column(Date)
+  + created_at: Column(DateTime)
+  + updated_at: Column(DateTime)
+  __
+  # Relationships
+  + reviews: relationship("CodeReviewEntity", back_populates="user", cascade="all, delete-orphan")
+}
+
+class AgentConfigEntity {
+  __tablename__ = "agent_configs"
+  __
+  + id: Column(UUID, primary_key=True)
+  + agent_type: Column(String, unique=True)
+  + is_enabled: Column(Boolean, default=True)
+  + config_json: Column(JSON)
+  + updated_by: Column(String, ForeignKey("users.id"))
+  + updated_at: Column(DateTime)
+}
+
+class AIUsageMetricsEntity {
+  __tablename__ = "ai_usage_metrics"
+  __
+  + id: Column(BigInteger, primary_key=True, autoincrement=True)
+  + review_id: Column(UUID, ForeignKey("code_reviews.id"))
+  + model_used: Column(String)
+  + prompt_tokens: Column(Integer)
+  + completion_tokens: Column(Integer)
+  + total_tokens: Column(Integer)
+  + cost_usd: Column(Numeric(10, 6))
+  + latency_ms: Column(Integer)
+  + cache_hit: Column(Boolean, default=False)
+  + created_at: Column(DateTime)
+}
+
+' ============================================
+' EXTERNAL SERVICE CLIENTS
+' ============================================
+class ClerkClient {
+  - api_key: str
+  - base_url: str
+  - session: aiohttp.ClientSession
+  __
+  + verify_jwt(token: str): Dict
+  + get_user(user_id: str): Dict
+  + list_users(filters: Dict): List[Dict]
+  - _make_request(method: str, endpoint: str, data: Dict): Dict
+}
+
+class SupabaseClient {
+  - url: str
+  - api_key: str
+  - connection_pool: Pool
+  __
+  + get_session(): Session
+  + execute_query(query: str, params: Dict): List[Dict]
+  + execute_raw_sql(sql: str): Any
+  - _create_connection_pool(): Pool
+}
+
+class RedisCache {
+  - client: Redis
+  - default_ttl: int = 86400
+  - prefix: str
+  __
+  + get(key: str): Optional[str]
+  + set(key: str, value: str, ttl: Optional[int]): void
+  + delete(key: str): void
+  + exists(key: str): bool
+  + generate_cache_key(finding: Finding): str
+  + get_hit_rate(): float
+  - _serialize(value: Any): str
+  - _deserialize(value: str): Any
+}
+
+class GeminiAPIClient {
+  - api_key: str
+  - model_name: str
+  - environment: str
+  __
+  + generate_content(prompt: str, config: Dict): str
+  + count_tokens(text: str): int
+  - _select_endpoint(): str
+  - _handle_rate_limit(response: Response): void
+}
+
+class MCPServerClient {
+  - server_name: str
+  - connection: ClientSession
+  - timeout: int = 5
+  __
+  + query(tool_name: str, params: Dict): Dict
+  + list_tools(): List[str]
+  + is_connected(): bool
+  - _connect(): void
+  - _disconnect(): void
+}
+
+' ============================================
+' UTILITY CLASSES
+' ============================================
+class AESEncryptor {
+  - key: bytes
+  - cipher: Cipher
+  __
+  + encrypt(plaintext: str): bytes
+  + decrypt(ciphertext: bytes): str
+  - _generate_iv(): bytes
+}
+
+class DatabaseMigration {
+  - alembic_config: AlembicConfig
+  __
+  + upgrade(revision: str): void
+  + downgrade(revision: str): void
+  + current(): str
+  + history(): List[str]
+}
+
+' ============================================
+' RELATIONSHIPS
+' ============================================
+ICodeReviewRepository <|.. CodeReviewRepository : implements
+IAgentFindingRepository <|.. AgentFindingRepository : implements
+IUserRepository <|.. UserRepository : implements
+IConfigRepository <|.. ConfigRepository : implements
+
+CodeReviewRepository --> CodeReviewEntity : uses
+CodeReviewRepository --> AESEncryptor : encrypts with
+CodeReviewRepository --> SupabaseClient : queries via
+
+AgentFindingRepository --> AgentFindingEntity : uses
+AgentFindingRepository --> SupabaseClient : queries via
+
+UserRepository --> UserEntity : uses
+UserRepository --> SupabaseClient : queries via
+
+ConfigRepository --> AgentConfigEntity : uses
+ConfigRepository --> RedisCache : caches with
+ConfigRepository --> SupabaseClient : queries via
+
+MetricsRepository --> AIUsageMetricsEntity : uses
+MetricsRepository --> SupabaseClient : queries via
+
+CodeReviewEntity "1" --> "*" AgentFindingEntity : has
+CodeReviewEntity "*" --> "1" UserEntity : belongs to
+AgentConfigEntity "*" --> "1" UserEntity : updated by
+
+' External Services
+AuthenticationService --> ClerkClient : uses
+AIExplainerService --> GeminiAPIClient : calls
+MCPContextEnricher --> MCPServerClient : queries
+
+' ============================================
+' NOTES
+' ============================================
+note right of ICodeReviewRepository
+  **Repository Pattern (Port)**
+  Abstraction for data access
+  Allows easy mocking in tests
+  Domain layer depends on interface
+end note
+
+note right of CodeReviewRepository
+  **Repository Implementation (Adapter)**
+  Concrete SQLAlchemy implementation
+  Handles encryption/decryption
+  Maps between domain and ORM
+end note
+
+note bottom of CodeReviewEntity
+  **ORM Entity (SQLAlchemy)**
+  Direct DB table mapping
+  Includes relationships
+  Index definitions
+end note
+
+note right of AESEncryptor
+  **Utility - Security**
+  AES-256 encryption
+  Key from environment
+  IV per encryption
+end note
+
+@enduml

@@ -1,0 +1,154 @@
+@startuml uml-seq-ai-explanation-generation
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam backgroundColor #FFFFFF
+
+title Sequence Diagram - AI Explanation Generation with MCP Context (Sprint 3)
+
+participant "SecurityAgentEnhanced" as SecAgent
+participant "AIExplainerService" as AIExp
+participant "RedisCache" as Redis
+participant "MCPContextEnricher" as MCP
+participant "OWASP MCP Server" as OWASP
+participant "CVE MCP Server" as CVE
+participant "Custom KB MCP" as CustomMCP
+participant "Gemini API" as Gemini
+
+-> SecAgent: analyze(context) invoked
+activate SecAgent
+
+SecAgent -> SecAgent: Run base SecurityAgent analysis\n(eval detection, SQL injection, etc.)
+
+SecAgent -> SecAgent: findings = [\n  Finding(severity=CRITICAL, issue_type='eval_usage'),\n  Finding(severity=HIGH, issue_type='sql_injection'),\n  Finding(severity=MEDIUM, issue_type='hardcoded_secret')\n]
+
+SecAgent -> SecAgent: Filter critical findings:\ncritical_findings = [finding1]
+
+loop For each critical finding
+    SecAgent -> AIExp: generate_explanation(finding)
+    activate AIExp
+    
+    AIExp -> AIExp: Generate cache key:\ncache_key = SHA256(\n  finding.issue_type + \n  finding.code_snippet + \n  str(finding.line_number)\n)\nkey = "b7a3f9..."
+    
+    AIExp -> Redis: get("ai_exp:b7a3f9...")
+    activate Redis
+    
+    alt Cache hit (explanation cached)
+        Redis --> AIExp: Cached AIExplanation JSON
+        deactivate Redis
+        
+        AIExp -> AIExp: Parse JSON to AIExplanation object
+        
+        AIExp --> SecAgent: Return cached AIExplanation\n(latency: ~10ms)
+        deactivate AIExp
+    else Cache miss (need to generate)
+        Redis --> AIExp: null
+        deactivate Redis
+        
+        AIExp -> MCP: enrich_context(finding)
+        activate MCP
+        
+        note over MCP, CustomMCP
+            **Parallel MCP Queries**
+            All 3 servers queried concurrently
+            using asyncio.gather()
+        end note
+        
+        par "OWASP Query"
+            MCP -> OWASP: call_tool('lookup_cwe',\n  params={'cwe_id': 'CWE-95'})
+            activate OWASP
+            OWASP -> OWASP: Query local CWE database
+            OWASP --> MCP: {\n  "cwe_name": "Improper Neutralization of Directives...",\n  "description": "...",\n  "severity": "HIGH",\n  "mitigation": ["Avoid eval", "Use ast.literal_eval"],\n  "owasp_category": "A03:2021 - Injection"\n}
+            deactivate OWASP
+        else "CVE Query"
+            MCP -> CVE: call_tool('search_cve',\n  params={'cwe_id': 'CWE-95', 'limit': 3})
+            activate CVE
+            CVE -> CVE: Query NIST NVD API
+            CVE --> MCP: {\n  "cves": [\n    {"cve_id": "CVE-2024-1234", "score": 9.8, "description": "...",\n     "exploit": "Attacker can execute arbitrary code..."},\n    {"cve_id": "CVE-2023-5678", "score": 8.1, ...}\n  ]\n}
+            deactivate CVE
+        else "Custom KB Query"
+            MCP -> CustomMCP: call_tool('lookup_fix_pattern',\n  params={'issue_type': 'eval_usage'})
+            activate CustomMCP
+            CustomMCP -> CustomMCP: Query team knowledge base
+            CustomMCP --> MCP: {\n  "preferred_solution": "Use ast.literal_eval for literals",\n  "approved_libraries": ["ast", "json"],\n  "team_convention": "Never use eval/exec",\n  "example_fix": "result = ast.literal_eval(user_input)"\n}
+            deactivate CustomMCP
+        end
+        
+        MCP -> MCP: Combine all contexts:\nenriched_context = f"""\nOWASP Context:\n{owasp_data}\n\nReal-world CVE Examples:\n{cve_data}\n\nTeam Convention:\n{custom_data}\n"""
+        
+        MCP --> AIExp: enriched_context (string)
+        deactivate MCP
+        
+        AIExp -> AIExp: Build Gemini prompt:\nprompt = f"""\nYou are a security expert teaching a junior developer.\n\nVulnerability Found:\nType: {finding.issue_type}\nLine: {finding.line_number}\nCode: {finding.code_snippet}\n\nContext:\n{enriched_context}\n\nProvide:\n1. Clear explanation\n2. Attack example\n3. Fixed code\n4. CWE/OWASP references\n\nFormat as JSON.\n"""
+        
+        AIExp -> Gemini: generate_content(\n  prompt=prompt,\n  temperature=0.3,\n  max_tokens=1024\n)
+        activate Gemini
+        
+        alt API success
+            Gemini -> Gemini: Generate response using\nGemini 1.5 Flash (Dev) or\nVertex AI Pro (Prod)
+            
+            Gemini --> AIExp: JSON response:\n{\n  "explanation": "The eval() function...",\n  "attack_example": "eval('__import__(\"os\")...",\n  "fix_code": "result = ast.literal_eval(...)",\n  "cwe_reference": "CWE-95",\n  "owasp_category": "A03:2021 - Injection"\n}
+            
+            AIExp -> AIExp: Parse JSON response
+            
+            AIExp -> AIExp: Create AIExplanation object:\n{\n  explanation: str,\n  attack_example: str,\n  fix_code: str,\n  cwe_reference: "CWE-95",\n  owasp_category: "A03:2021",\n  confidence_score: 0.95,\n  model_used: "gemini-1.5-flash",\n  generated_at: datetime.now(),\n  generation_time_ms: 1250\n}
+        else API error (rate limit)
+            Gemini --> AIExp: Error 429\n{"error": "Rate limit exceeded"}
+            
+            AIExp -> AIExp: Retry counter = 0
+            
+            loop Retry up to 3 attempts (rate limit)
+                AIExp -> AIExp: Wait exponential backoff:\ndelay = 2^retry_counter seconds
+                
+                AIExp -> Gemini: Retry generate_content()
+                activate Gemini
+                
+                alt Retry success
+                    Gemini --> AIExp: JSON response
+                    deactivate Gemini
+                    AIExp -> AIExp: Parse response
+                    AIExp -> AIExp: retry_counter = 3
+                else Retry failed
+                    Gemini --> AIExp: Error 429
+                    deactivate Gemini
+                    AIExp -> AIExp: retry_counter++
+                end
+            end
+            
+            AIExp -> AIExp: All retries exhausted\nUse static template fallback:\n{\n  explanation: "This code uses eval() which is dangerous...",\n  attack_example: "Generic example",\n  fix_code: "Use ast.literal_eval instead",\n  cwe_reference: "CWE-95",\n  confidence_score: 0.5,\n  model_used: "fallback_template"\n}
+            
+            AIExp -> AIExp: Log event:\nevent_type="gemini_fallback",\nreason="rate_limit_exhausted"
+        end
+        deactivate Gemini
+        
+        AIExp -> Redis: set(\n  key="ai_exp:b7a3f9...",\n  value=json.dumps(explanation),\n  ttl=86400  # 24 hours\n)
+        activate Redis
+        Redis --> AIExp: OK
+        deactivate Redis
+        
+        AIExp -> AIExp: Record AI usage metrics:\n{\n  model_used: "gemini-1.5-flash",\n  prompt_tokens: 450,\n  completion_tokens: 320,\n  total_tokens: 770,\n  cost_usd: 0.00015,\n  latency_ms: 1250,\n  cache_hit: false\n}
+        
+        AIExp --> SecAgent: Return AIExplanation object
+        deactivate AIExp
+    end
+end
+
+SecAgent -> SecAgent: Return enriched findings list\nwith AI explanations
+
+<-- SecAgent: List[Finding] with AIExplanations
+deactivate SecAgent
+
+note right of Gemini
+  **Cost Analysis:**
+  • Gemini Flash: ~$0.00015/request
+  • Vertex AI Pro: ~$0.003/request
+  • Cache hit: $0 (no API call)
+  • Daily budget: $200 → ~66,000 Flash requests
+  
+  **Performance:**
+  • MCP enrichment: ~800ms
+  • Gemini generation: ~1200ms
+  • Total: ~2 seconds
+  • Cache hit: ~10ms
+end note
+
+@enduml

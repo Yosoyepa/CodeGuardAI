@@ -1,0 +1,195 @@
+@startuml uml-seq-admin-configuration
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam backgroundColor #FFFFFF
+
+title Sequence Diagram - Admin Configuration Workflow (Sprint 4)
+
+actor "Admin" as Admin
+participant "Frontend\n(Admin Dashboard)" as FE
+participant "Backend\n(FastAPI)" as BE
+participant "AuthenticationService" as Auth
+participant "ConfigService" as ConfigSvc
+participant "ConfigRepository" as ConfigRepo
+participant "EventBus" as EventBus
+participant "RedisCache" as Redis
+participant "PostgreSQL" as DB
+
+Admin -> FE: Navigate to Admin Dashboard
+activate FE
+
+FE -> BE: GET /api/v1/admin/config\nAuthorization: Bearer <JWT>
+activate BE
+
+BE -> Auth: validate_jwt(token)
+activate Auth
+Auth -> Auth: Verify token signature\nCheck expiration
+Auth --> BE: User object (with role)
+deactivate Auth
+
+alt User role != ADMIN
+    BE --> FE: HTTP 403 (Forbidden)\n{"error": "Admin access required"}
+    FE --> Admin: Show error message
+    deactivate BE
+    deactivate FE
+else User is ADMIN
+    BE -> ConfigSvc: get_all_configs()
+    activate ConfigSvc
+    
+    ConfigSvc -> Redis: get("config:all")
+    activate Redis
+    
+    alt Cache hit
+        Redis --> ConfigSvc: Cached configs
+    else Cache miss
+        Redis --> ConfigSvc: null
+        
+        ConfigSvc -> ConfigRepo: get_all_agent_configs()
+        activate ConfigRepo
+        ConfigRepo -> DB: SELECT * FROM agent_configs
+        activate DB
+        DB --> ConfigRepo: agent_configs rows
+        deactivate DB
+        ConfigRepo --> ConfigSvc: List[AgentConfig]
+        deactivate ConfigRepo
+        
+        ConfigSvc -> ConfigRepo: get_ai_config()
+        activate ConfigRepo
+        ConfigRepo -> DB: SELECT * FROM ai_config\nLIMIT 1
+        activate DB
+        DB --> ConfigRepo: ai_config row
+        deactivate DB
+        ConfigRepo --> ConfigSvc: AIConfig
+        deactivate ConfigRepo
+        
+        ConfigSvc -> Redis: set("config:all", configs, ttl=3600)
+        activate Redis
+        Redis --> ConfigSvc: OK
+        deactivate Redis
+    end
+    
+    ConfigSvc --> BE: AllConfigsDTO
+    deactivate ConfigSvc
+    
+    BE --> FE: HTTP 200\n{"agent_configs": {...}, "ai_config": {...}}
+    deactivate BE
+    
+    FE -> FE: Render config form\n• Agent toggles\n• AI settings\n• Threshold inputs
+    
+    FE --> Admin: Display configuration UI
+    deactivate FE
+end
+
+== Admin Modifies Configuration ==
+
+Admin -> FE: Modify settings:\n• Disable SecurityAgent\n• Set AI model to Gemini Pro\n• Change complexity threshold to 15
+activate FE
+
+FE -> FE: Validate input:\n• Thresholds in valid range\n• At least one agent enabled
+FE -> FE: Show save button enabled
+
+Admin -> FE: Click "Save Configuration"
+
+FE -> BE: PUT /api/v1/admin/config\nAuthorization: Bearer <JWT>\n{"agent_configs": {...}, "ai_config": {...}}
+activate BE
+
+BE -> Auth: validate_jwt(token) & check_admin_role(user)
+activate Auth
+Auth --> BE: User (confirmed admin)
+deactivate Auth
+
+BE -> ConfigSvc: update_agent_config("SecurityAgent", new_config, admin.id)
+activate ConfigSvc
+
+ConfigSvc -> ConfigSvc: Validate configuration:\n• No conflicting rules\n• Valid thresholds
+
+alt Validation fails
+    ConfigSvc --> BE: ValidationError
+    BE --> FE: HTTP 422 (Unprocessable Entity)\n{"error": "Invalid threshold: must be >= 1"}
+    FE --> Admin: Show validation error
+    deactivate BE
+    deactivate FE
+else Validation passes
+    ConfigSvc -> ConfigRepo: save_agent_config("SecurityAgent", config)
+    activate ConfigRepo
+    
+    ConfigRepo -> DB: UPDATE agent_configs\nSET is_enabled = false,\n    config_json = {...},\n    updated_by = 'admin123',\n    updated_at = now()\nWHERE agent_type = 'SecurityAgent'
+    activate DB
+    DB --> ConfigRepo: 1 row updated
+    deactivate DB
+    
+    ConfigRepo --> ConfigSvc: Success
+    deactivate ConfigRepo
+    
+    ConfigSvc -> Redis: delete("config:all")
+    activate Redis
+    Redis --> ConfigSvc: 1 key deleted
+    deactivate Redis
+    
+    ConfigSvc -> Redis: delete("config:SecurityAgent")
+    activate Redis
+    Redis --> ConfigSvc: 1 key deleted
+    deactivate Redis
+    
+    ConfigSvc -> EventBus: publish(CONFIG_UPDATED,\n  agent="SecurityAgent",\n  updated_by="admin123")
+    activate EventBus
+    
+    EventBus -> EventBus: Notify all observers:\n• WebSocket clients\n• Backend instances\n• Audit logger
+    
+    EventBus --> ConfigSvc: Event published
+    deactivate EventBus
+    
+    ConfigSvc --> BE: Success
+    deactivate ConfigSvc
+end
+
+== Update AI Configuration ==
+
+BE -> ConfigSvc: update_ai_config(new_ai_config, admin.id)
+activate ConfigSvc
+
+ConfigSvc -> ConfigSvc: Validate AI config:\n• Model type valid\n• Rate limit > 0\n• Budget threshold > 0
+
+ConfigSvc -> ConfigRepo: save_ai_config(ai_config)
+activate ConfigRepo
+
+ConfigRepo -> DB: INSERT INTO ai_config\n(ai_enabled, model_type, rate_limit_daily, budget_threshold_usd, updated_by)\nVALUES (true, 'VERTEX_AI_PRO', 100, 200.00, 'admin123')\nON CONFLICT (id) DO UPDATE\nSET model_type = EXCLUDED.model_type, ...
+activate DB
+DB --> ConfigRepo: 1 row inserted/updated
+deactivate DB
+
+ConfigRepo --> ConfigSvc: Success
+deactivate ConfigRepo
+
+ConfigSvc -> Redis: delete("ai_config")
+activate Redis
+Redis --> ConfigSvc: 1 key deleted
+deactivate Redis
+
+ConfigSvc -> EventBus: publish(AI_CONFIG_UPDATED,\n  model="VERTEX_AI_PRO",\n  rate_limit=100)
+activate EventBus
+EventBus --> ConfigSvc: Event published
+deactivate EventBus
+
+ConfigSvc --> BE: Success
+deactivate ConfigSvc
+
+BE --> FE: HTTP 200\n{"message": "Configuration updated successfully",\n "updated_at": "2025-11-02T06:15:00Z"}
+deactivate BE
+
+FE -> FE: Show success notification:\n"Configuration saved!\nNew settings will apply to\nanalyses submitted after now."
+
+FE --> Admin: Display success message
+deactivate FE
+
+== Real-time Effect ==
+
+note over BE, EventBus
+  **Configuration Propagation**
+  • All backend instances receive CONFIG_UPDATED event
+  • In-memory caches invalidated
+  • New analyses use new configuration
+  • Running analyses continue with old config
+end note
+
+@enduml

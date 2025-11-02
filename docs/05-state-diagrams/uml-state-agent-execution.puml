@@ -1,0 +1,148 @@
+@startuml uml-state-agent-execution
+skinparam backgroundColor #FFFFFF
+skinparam state {
+  BackgroundColor<<idle>> #E7F5FF
+  BackgroundColor<<active>> #FEF3C7
+  BackgroundColor<<success>> #D1FAE5
+  BackgroundColor<<error>> #FEE2E2
+  BorderColor #1E40AF
+  FontSize 11
+}
+
+title State Diagram - Individual Agent Execution Lifecycle
+
+[*] --> IDLE : Agent instantiated
+
+state IDLE <<idle>> {
+  IDLE : **State:** Waiting for analysis request
+  IDLE : **Context:** Agent registered in factory
+  IDLE : **Resources:** None allocated
+}
+
+IDLE --> INITIALIZING : analyze(context) called
+
+state INITIALIZING <<active>> {
+  INITIALIZING : **Entry actions:**
+  INITIALIZING : • Validate AnalysisContext
+  INITIALIZING : • Load configuration
+  INITIALIZING : • Allocate resources (AST parser, analyzers)
+  INITIALIZING : • Emit AGENT_STARTED event
+}
+
+INITIALIZING --> ANALYZING : Initialization successful
+
+state ANALYZING <<active>> {
+  ANALYZING : **During:**
+  ANALYZING : • Parse code (AST)
+  ANALYZING : • Execute detection rules
+  ANALYZING : • Collect findings
+  ANALYZING : • Update progress metrics
+  
+  state "Execution" as Exec {
+    [*] --> ParsingCode
+    
+    ParsingCode : Parse Python code\ninto AST tree
+    ParsingCode --> RunningRules : AST ready
+    
+    RunningRules : Execute detection rules\n(eval, SQL injection, etc.)
+    RunningRules --> CollectingFindings : Rules executed
+    
+    CollectingFindings : Aggregate findings\nCalculate metrics
+    CollectingFindings --> [*] : Complete
+  }
+}
+
+INITIALIZING --> FAILED : Validation error\n(invalid context, missing config)
+
+ANALYZING --> TIMEOUT : Execution time > timeout_threshold\n(default: 30 seconds)
+
+state TIMEOUT <<error>> {
+  TIMEOUT : **Entry actions:**
+  TIMEOUT : • Cancel ongoing operations
+  TIMEOUT : • Save partial results
+  TIMEOUT : • Log timeout event
+  TIMEOUT : • Emit AGENT_TIMEOUT event
+  
+  TIMEOUT : **Partial findings:** Saved to database
+}
+
+ANALYZING --> FAILED : Fatal error\n(AST parse error, exception)
+
+ANALYZING --> COMPLETED : Analysis finished successfully
+
+state COMPLETED <<success>> {
+  COMPLETED : **Entry actions:**
+  COMPLETED : • Finalize findings list
+  COMPLETED : • Calculate execution time
+  COMPLETED : • Emit AGENT_COMPLETED event
+  COMPLETED : • Return results to orchestrator
+  
+  COMPLETED : **Exit actions:**
+  COMPLETED : • Release resources
+  COMPLETED : • Clear AST cache
+}
+
+state FAILED <<error>> {
+  FAILED : **Entry actions:**
+  FAILED : • Log error details (stack trace)
+  FAILED : • Emit AGENT_FAILED event
+  FAILED : • Set error_message
+  
+  FAILED : **Possible causes:**
+  FAILED : • SyntaxError in code
+  FAILED : • MemoryError (file too large)
+  FAILED : • UnexpectedAgentCrash
+  
+  FAILED : **Exit actions:**
+  FAILED : • Release resources
+  FAILED : • Notify orchestrator
+}
+
+COMPLETED --> IDLE : Reset for next analysis
+FAILED --> IDLE : Reset for next analysis
+TIMEOUT --> IDLE : Reset for next analysis
+
+COMPLETED --> [*] : Agent destroyed
+FAILED --> [*] : Agent destroyed
+TIMEOUT --> [*] : Agent destroyed
+
+note right of IDLE
+  **Initial State:**
+  Agent waits in factory registry
+  No active analysis
+  Ready to receive analyze() call
+end note
+
+note right of ANALYZING
+  **Active State:**
+  • CPU-intensive operations
+  • Monitor execution time
+  • Emit progress events
+  • Graceful timeout handling
+end note
+
+note bottom of TIMEOUT
+  **Graceful Degradation:**
+  • Partial results preserved
+  • Orchestrator continues with other agents
+  • Analysis not failed (degraded quality)
+  • User notified: "SecurityAgent timed out"
+end note
+
+note bottom of COMPLETED
+  **Success Metrics:**
+  • execution_time_ms recorded
+  • findings_count logged
+  • EventBus notified
+  • Orchestrator proceeds
+end note
+
+note right of FAILED
+  **Error Handling:**
+  • Log to Sentry (production)
+  • Admin notification if ≥3 failures/hour
+  • User sees generic error message
+  • Analysis marked as FAILED
+end note
+
+@enduml

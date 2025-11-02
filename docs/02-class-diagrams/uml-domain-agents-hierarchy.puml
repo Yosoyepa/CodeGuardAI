@@ -1,0 +1,256 @@
+@startuml uml-domain-agents-hierarchy
+skinparam classAttributeIconSize 0
+skinparam classFontSize 10
+skinparam backgroundColor #FFFFFF
+skinparam class {
+  BackgroundColor #FFF4E6
+  BorderColor #D97706
+  ArrowColor #D97706
+}
+
+title Domain Layer - Agents Hierarchy & Collaboration
+
+' ============================================
+' ABSTRACT BASE
+' ============================================
+abstract class BaseAgent <<Abstract>> {
+  # name: str
+  # version: str
+  # category: AgentCategory
+  # config: AgentConfig
+  # event_bus: EventBus
+  __
+  + <<abstract>> analyze(context: AnalysisContext): List[Finding]
+  + get_name(): str
+  + get_version(): str
+  + get_category(): AgentCategory
+  # emit_started_event(): void
+  # emit_completed_event(findings_count: int): void
+  # emit_error_event(error: Exception): void
+}
+
+' ============================================
+' STATIC ANALYZERS (Sprint 1-2)
+' ============================================
+class SecurityAgent <<Sprint1>> {
+  - bandit: BanditAnalyzer
+  - dangerous_funcs: Set[str]
+  - sql_patterns: List[Pattern]
+  - credential_patterns: List[Pattern]
+  __
+  + analyze(context: AnalysisContext): List[Finding]
+  # _detect_dangerous_functions(): List[Finding]
+  # _detect_sql_injection(): List[Finding]
+  # _detect_hardcoded_credentials(): List[Finding]
+  # _detect_weak_crypto(): List[Finding]
+}
+
+class QualityAgent <<Sprint2>> {
+  - radon: RadonAnalyzer
+  - complexity_threshold: int
+  - duplication_threshold: float
+  __
+  + analyze(context: AnalysisContext): List[Finding]
+  # _calculate_complexity(): List[Finding]
+  # _detect_duplication(): List[Finding]
+  # _measure_function_length(): List[Finding]
+}
+
+class PerformanceAgent <<Sprint2>> {
+  - visitor: PerformanceASTVisitor
+  - nested_loop_limit: int
+  __
+  + analyze(context: AnalysisContext): List[Finding]
+  # _detect_nested_loops(): List[Finding]
+  # _detect_inefficient_patterns(): List[Finding]
+  # _detect_expensive_in_loops(): List[Finding]
+}
+
+class StyleAgent <<Sprint2>> {
+  - pylint: PylintAnalyzer
+  - flake8: Flake8Analyzer
+  __
+  + analyze(context: AnalysisContext): List[Finding]
+  # _check_pep8(): List[Finding]
+  # _check_docstrings(): List[Finding]
+  # _check_imports(): List[Finding]
+}
+
+' ============================================
+' AI-ENHANCED AGENT (Sprint 3)
+' ============================================
+class SecurityAgentEnhanced <<Sprint3>> {
+  - ai_explainer: AIExplainerService
+  - mcp_enricher: MCPContextEnricher
+  - ai_enabled: bool
+  __
+  + analyze(context: AnalysisContext): List[Finding]
+  # _enrich_with_ai(findings: List[Finding]): List[Finding]
+  - _should_explain(finding: Finding): bool
+}
+
+' ============================================
+' HELPER CLASSES
+' ============================================
+class BanditAnalyzer {
+  - config: BanditConfig
+  __
+  + run(code: str): List[Issue]
+  + get_severity(issue: Issue): Severity
+}
+
+class RadonAnalyzer {
+  __
+  + analyze_complexity(code: str): Dict[str, int]
+  + analyze_maintainability(code: str): float
+}
+
+class PylintAnalyzer {
+  - config_file: str
+  __
+  + run(code: str): List[Message]
+  + filter_by_category(messages: List, category: str): List
+}
+
+class Flake8Analyzer {
+  __
+  + run(code: str): List[Violation]
+}
+
+class PerformanceASTVisitor {
+  - loop_depth: int
+  __
+  + visit_For(node: ast.For): void
+  + visit_While(node: ast.While): void
+  + get_nested_loops(): List[LoopInfo]
+}
+
+' ============================================
+' ORCHESTRATOR & FACTORY
+' ============================================
+class OrchestratorAgent {
+  - factory: AgentFactory
+  - executor: ThreadPoolExecutor
+  - registered_agents: List[str]
+  __
+  + orchestrate_analysis(context: AnalysisContext): CodeReview
+  + execute_parallel(context: AnalysisContext): Dict[str, List[Finding]]
+  - _create_futures(agents: List[BaseAgent]): List[Future]
+  - _wait_for_completion(futures: List[Future], timeout: int): Dict
+}
+
+class AgentFactory <<Singleton>> {
+  - {static} _instance: AgentFactory
+  - _registry: Dict[str, Type[BaseAgent]]
+  __
+  + {static} get_instance(): AgentFactory
+  + register(name: str, cls: Type[BaseAgent]): void
+  + create(name: str, config: AgentConfig): BaseAgent
+  + list_available(): List[str]
+}
+
+' ============================================
+' CONTEXT & RESULTS
+' ============================================
+class AnalysisContext {
+  + analysis_id: UUID
+  + user_id: str
+  + filename: str
+  + code_content: str
+  + config: AnalysisConfig
+  __
+  + get_ast(): ast.AST
+  + get_lines(): List[str]
+}
+
+class Finding {
+  + id: UUID
+  + agent_type: str
+  + severity: Severity
+  + issue_type: str
+  + line_number: int
+  + message: str
+  + suggestion: str
+  + ai_explanation: Optional[AIExplanation]
+  __
+  + get_penalty(): int
+}
+
+class CodeReview {
+  + id: UUID
+  + findings: List[Finding]
+  + quality_score: int
+  + status: ReviewStatus
+  __
+  + add_finding(finding: Finding): void
+  + calculate_score(): int
+}
+
+' ============================================
+' INHERITANCE
+' ============================================
+BaseAgent <|-- SecurityAgent
+BaseAgent <|-- QualityAgent
+BaseAgent <|-- PerformanceAgent
+BaseAgent <|-- StyleAgent
+SecurityAgent <|-- SecurityAgentEnhanced
+
+' ============================================
+' COMPOSITION
+' ============================================
+SecurityAgent *-- BanditAnalyzer : contains
+QualityAgent *-- RadonAnalyzer : contains
+PerformanceAgent *-- PerformanceASTVisitor : contains
+StyleAgent *-- PylintAnalyzer : contains
+StyleAgent *-- Flake8Analyzer : contains
+
+OrchestratorAgent --> AgentFactory : uses
+OrchestratorAgent ..> BaseAgent : orchestrates
+AgentFactory ..> BaseAgent : creates
+
+BaseAgent ..> AnalysisContext : analyzes
+BaseAgent ..> Finding : produces
+OrchestratorAgent ..> CodeReview : creates
+
+SecurityAgentEnhanced --> AIExplainerService : uses
+SecurityAgentEnhanced --> MCPContextEnricher : uses
+
+' ============================================
+' NOTES
+' ============================================
+note right of BaseAgent
+  **Template Method Pattern**
+  analyze() is abstract
+  Subclasses implement specific logic
+  Common event emission
+end note
+
+note bottom of SecurityAgentEnhanced
+  **Decorator Pattern**
+  Extends SecurityAgent
+  Adds AI explanation layer
+  Sprint 3 feature
+end note
+
+note left of OrchestratorAgent
+  **Coordinator**
+  Parallel execution
+  ThreadPoolExecutor
+  Timeout handling
+end note
+
+note right of AgentFactory
+  **Factory + Singleton**
+  Central registration
+  Thread-safe instantiation
+  Dynamic agent loading
+end note
+
+legend right
+  |<back:#FFF4E6>  | Domain Layer |
+  |<back:#E7F5FF>  | Sprint 1 (MVP) |
+  |<back:#FEF3C7>  | Sprint 2 (More Agents) |
+  |<back:#D1FAE5>  | Sprint 3 (AI Integration) |
+endlegend
+
+@enduml

@@ -1,0 +1,331 @@
+@startuml uml-domain-models-relationships
+skinparam classAttributeIconSize 0
+skinparam classFontSize 10
+skinparam backgroundColor #FFFFFF
+skinparam class {
+  BackgroundColor #FFF4E6
+  BorderColor #D97706
+  ArrowColor #D97706
+}
+
+title Domain Layer - Models & Relationships (Entities, Value Objects, Enums)
+
+' ============================================
+' AGGREGATES
+' ============================================
+class CodeReview <<Aggregate Root>> {
+  + id: UUID
+  + user_id: str
+  + filename: str
+  + quality_score: int
+  + status: ReviewStatus
+  + findings: List[Finding]
+  + total_findings: int
+  + created_at: datetime
+  + completed_at: Optional[datetime]
+  + error_message: Optional[str]
+  __
+  + add_finding(finding: Finding): void
+  + remove_finding(finding_id: UUID): void
+  + calculate_score(): int
+  + get_findings_by_severity(severity: Severity): List[Finding]
+  + get_findings_by_agent(agent_type: str): List[Finding]
+  + get_critical_findings(): List[Finding]
+  + is_completed(): bool
+  + is_failed(): bool
+  + has_critical_issues(): bool
+  + mark_completed(): void
+  + mark_failed(error: str): void
+}
+
+class Finding <<Entity>> {
+  + id: UUID
+  + agent_type: str
+  + severity: Severity
+  + issue_type: str
+  + line_number: int
+  + code_snippet: str
+  + message: str
+  + suggestion: str
+  + metrics: Optional[Dict[str, Any]]
+  + ai_explanation: Optional[AIExplanation]
+  + mcp_references: List[str]
+  + created_at: datetime
+  __
+  + get_severity_penalty(): int
+  + has_ai_explanation(): bool
+  + add_ai_explanation(explanation: AIExplanation): void
+  + to_dict(): Dict
+  + __eq__(other: Finding): bool
+  + __hash__(): int
+}
+
+class User <<Aggregate Root>> {
+  + id: str
+  + email: str
+  + name: str
+  + avatar_url: Optional[str]
+  + role: Role
+  + daily_analysis_count: int
+  + last_analysis_date: Optional[date]
+  + created_at: datetime
+  + updated_at: datetime
+  __
+  + can_analyze(): bool
+  + increment_usage(): void
+  + reset_daily_quota(): void
+  + is_admin(): bool
+  + get_remaining_quota(): int
+}
+
+' ============================================
+' VALUE OBJECTS
+' ============================================
+class AIExplanation <<Value Object>> {
+  + explanation: str
+  + attack_example: Optional[str]
+  + fix_code: Optional[str]
+  + cwe_reference: str
+  + owasp_category: str
+  + confidence_score: float
+  + model_used: str
+  + generated_at: datetime
+  + generation_time_ms: int
+  __
+  + is_high_confidence(): bool
+  + to_dict(): Dict
+  + __eq__(other: AIExplanation): bool
+}
+
+class AnalysisContext <<Value Object>> {
+  + analysis_id: UUID
+  + user_id: str
+  + filename: str
+  + code_content: str
+  + uploaded_at: datetime
+  + config: AnalysisConfig
+  __
+  + get_ast(): ast.AST
+  + get_lines(): List[str]
+  + get_line(line_number: int): str
+  + get_file_size(): int
+  + to_dict(): Dict
+}
+
+class AgentConfig <<Value Object>> {
+  + enabled: bool
+  + timeout_seconds: int
+  + custom_rules: Dict[str, Any]
+  + thresholds: Dict[str, float]
+  __
+  + is_rule_enabled(rule_name: str): bool
+  + get_threshold(key: str, default: float): float
+  + to_dict(): Dict
+  + from_dict(data: Dict): AgentConfig
+}
+
+class AIConfig <<Value Object>> {
+  + ai_enabled: bool
+  + model_type: str
+  + rate_limit_daily: int
+  + budget_threshold_usd: float
+  + current_spend_usd: float
+  __
+  + is_budget_exceeded(): bool
+  + is_rate_limit_exceeded(current_usage: int): bool
+  + get_remaining_budget(): float
+  + to_dict(): Dict
+}
+
+class QuotaInfo <<Value Object>> {
+  + daily_limit: int
+  + current_usage: int
+  + last_reset_date: date
+  __
+  + get_remaining(): int
+  + is_exceeded(): bool
+  + needs_reset(): bool
+}
+
+class DateRange <<Value Object>> {
+  + start_date: datetime
+  + end_date: datetime
+  __
+  + get_duration_days(): int
+  + contains(date: datetime): bool
+  + __eq__(other: DateRange): bool
+}
+
+' ============================================
+' ENUMERATIONS
+' ============================================
+enum Severity <<Enum>> {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+  __
+  + get_penalty(): int
+  + get_color(): str
+  + get_order(): int
+}
+
+enum ReviewStatus <<Enum>> {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  __
+  + is_terminal(): bool
+  + can_transition_to(status: ReviewStatus): bool
+}
+
+enum Role <<Enum>> {
+  DEVELOPER
+  ADMIN
+  __
+  + has_permission(permission: str): bool
+}
+
+enum AgentCategory <<Enum>> {
+  SECURITY
+  QUALITY
+  PERFORMANCE
+  STYLE
+  __
+  + get_color(): str
+  + get_icon(): str
+}
+
+' ============================================
+' DOMAIN EVENTS
+' ============================================
+class Event <<Domain Event>> {
+  + event_id: UUID
+  + event_type: str
+  + aggregate_id: UUID
+  + aggregate_type: str
+  + data: Dict[str, Any]
+  + timestamp: datetime
+  __
+  + to_dict(): Dict
+}
+
+class AnalysisStartedEvent <<Domain Event>> {
+  + review_id: UUID
+  + user_id: str
+  + filename: str
+  __
+  + to_dict(): Dict
+}
+
+class AgentCompletedEvent <<Domain Event>> {
+  + review_id: UUID
+  + agent_name: str
+  + findings_count: int
+  + execution_time_ms: int
+  __
+  + to_dict(): Dict
+}
+
+class AnalysisCompletedEvent <<Domain Event>> {
+  + review_id: UUID
+  + quality_score: int
+  + total_findings: int
+  + has_critical: bool
+  __
+  + to_dict(): Dict
+}
+
+class AnalysisFailedEvent <<Domain Event>> {
+  + review_id: UUID
+  + error_message: str
+  + error_type: str
+  __
+  + to_dict(): Dict
+}
+
+' ============================================
+' RELATIONSHIPS
+' ============================================
+
+' Aggregates
+CodeReview "1" *-- "*" Finding : contains
+CodeReview --> ReviewStatus : has
+CodeReview "* " --> "1" User : belongs to
+
+Finding --> Severity : has
+Finding "1" o-- "0..1" AIExplanation : has
+Finding --> AgentCategory : categorized by
+
+User --> Role : has
+User --> QuotaInfo : has
+
+' Value Objects
+CodeReview ..> AnalysisContext : created from
+Finding ..> AgentConfig : validated by
+AIExplanation ..> AIConfig : generated using
+
+' Events
+CodeReview ..> AnalysisStartedEvent : emits
+CodeReview ..> AgentCompletedEvent : emits
+CodeReview ..> AnalysisCompletedEvent : emits
+CodeReview ..> AnalysisFailedEvent : emits
+
+Event <|-- AnalysisStartedEvent
+Event <|-- AgentCompletedEvent
+Event <|-- AnalysisCompletedEvent
+Event <|-- AnalysisFailedEvent
+
+' ============================================
+' NOTES
+' ============================================
+note right of CodeReview
+  **Aggregate Root**
+  Maintains consistency boundary
+  Controls access to Finding entities
+  Enforces business rules
+  Emits domain events
+end note
+
+note right of Finding
+  **Entity (Part of CodeReview Aggregate)**
+  Has identity (UUID)
+  Belongs to CodeReview
+  Can have AI explanation attached
+  Immutable after creation
+end note
+
+note bottom of AIExplanation
+  **Value Object**
+  No identity
+  Immutable
+  Value equality
+  Can be shared
+end note
+
+note right of Severity
+  **Enum with Behavior**
+  CRITICAL = -10 penalty
+  HIGH = -5 penalty
+  MEDIUM = -2 penalty
+  LOW = -1 penalty
+end note
+
+note bottom of Event
+  **Domain Events**
+  Represent state changes
+  Immutable
+  Timestamped
+  Used for event sourcing
+end note
+
+legend right
+  |<back:#FFF4E6>  | Aggregate Root |
+  |<back:#E7F5FF>  | Entity |
+  |<back:#F0FFF4>  | Value Object |
+  |<back:#FEF3C7>  | Enum |
+  |<back:#FEE2E2>  | Domain Event |
+endlegend
+
+@enduml

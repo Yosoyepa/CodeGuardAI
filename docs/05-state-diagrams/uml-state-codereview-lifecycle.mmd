@@ -1,0 +1,130 @@
+stateDiagram-v2
+    [*] --> PENDING: User uploads file\nPOST /api/v1/analyze
+    
+    state PENDING {
+        [*] --> FileValidated
+        FileValidated: File extension valid (.py)
+        FileValidated: File size ≤ 10MB
+        FileValidated: UTF-8 encoding valid
+        FileValidated --> EntityCreated
+        EntityCreated: CodeReview entity created
+        EntityCreated: status = 'PENDING'
+        EntityCreated: code_content encrypted (AES-256)
+        EntityCreated: analysis_id generated (UUID)
+    }
+    
+    PENDING --> PROCESSING: OrchestratorAgent.analyze() called
+    
+    state PROCESSING {
+        [*] --> AgentsExecuting
+        
+        state AgentsExecuting {
+            [*] --> SecurityAgent
+            SecurityAgent: Parse AST
+            SecurityAgent: Detect vulnerabilities
+            SecurityAgent --> QualityAgent
+            QualityAgent: Calculate complexity
+            QualityAgent: Detect duplication
+            QualityAgent --> PerformanceAgent
+            PerformanceAgent: Detect nested loops
+            PerformanceAgent: Find inefficiencies
+            PerformanceAgent --> StyleAgent
+            StyleAgent: Check PEP 8
+            StyleAgent: Validate docstrings
+            StyleAgent --> [*]
+        }
+        
+        state AgentTimeout {
+            AgentTimeout: Agent exceeded 30s timeout
+            AgentTimeout: Save partial results
+            AgentTimeout: Mark agent as 'timed_out'
+            AgentTimeout: Continue with other agents
+        }
+        
+        AgentsExecuting --> AllComplete: All agents done
+        AgentsExecuting --> AgentTimeout: Timeout
+        AgentTimeout --> AllComplete: Graceful degradation
+    }
+    
+    PROCESSING --> COMPLETED: All agents complete\nAND no fatal errors
+    PROCESSING --> FAILED: Fatal error\n(parse error, DB crash)
+    
+    state COMPLETED {
+        [*] --> ScoreCalculated
+        ScoreCalculated: quality_score = max(0, 100 - Σ(penalties))
+        ScoreCalculated: CRITICAL: -10 points
+        ScoreCalculated: HIGH: -5 points
+        ScoreCalculated: MEDIUM: -2 points
+        ScoreCalculated: LOW: -1 point
+        ScoreCalculated --> FindingsPersisted
+        FindingsPersisted: Insert into agent_findings table
+        FindingsPersisted: total_findings = COUNT(*)
+        FindingsPersisted --> StatusUpdated
+        StatusUpdated: status = 'COMPLETED'
+        StatusUpdated: completed_at = now()
+        StatusUpdated: Emit ANALYSIS_COMPLETED event
+    }
+    
+    state FAILED {
+        [*] --> ErrorLogged
+        ErrorLogged: Log error details (stack trace)
+        ErrorLogged: Log to Sentry (production)
+        ErrorLogged --> StatusUpdated
+        StatusUpdated: status = 'FAILED'
+        StatusUpdated: error_message stored
+        StatusUpdated: Emit ANALYSIS_FAILED event
+        StatusUpdated --> UserNotified
+        UserNotified: Show error message to user
+        UserNotified: Admin alerted (if critical)
+    }
+    
+    COMPLETED --> [*]: Analysis finalized\n(terminal state)
+    FAILED --> [*]: Error handled\n(terminal state)
+    
+    note right of PENDING
+        Preconditions:
+        • File validated (.py, ≤10MB, UTF-8)
+        • User authenticated (JWT valid)
+        • Daily quota not exceeded (10/day)
+        • No concurrent analysis for user
+    end note
+    
+    note right of PROCESSING
+        Parallel Execution:
+        • ThreadPoolExecutor(max_workers=4)
+        • Each agent timeout: 30 seconds
+        • WebSocket updates: every completion
+        • Graceful degradation on failures
+        • Progress: 0% → 25% → 50% → 75% → 100%
+    end note
+    
+    note right of COMPLETED
+        Quality Score Formula:
+        score = max(0, 100 - Σ(penalties))
+        
+        Examples:
+        • 0 findings: score = 100
+        • 1 critical: score = 90
+        • 2 critical + 3 high: score = 65
+        • 10 critical: score = 0
+        
+        Postconditions:
+        • quality_score ∈ [0, 100]
+        • total_findings = COUNT(agent_findings)
+        • Result cached for 24 hours
+        • User can view/export results
+    end note
+    
+    note right of FAILED
+        Common Fatal Errors:
+        • SyntaxError (invalid Python)
+        • MemoryError (file too large)
+        • DatabaseConnectionError
+        • UnexpectedAgentCrash
+        
+        Recovery Actions:
+        • Log to Sentry
+        • Email admin if ≥3 failures/hour
+        • User sees friendly error message
+        • Retry allowed for transient errors
+    end note

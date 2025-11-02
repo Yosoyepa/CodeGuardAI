@@ -1,0 +1,384 @@
+@startuml uml-domain-layer-complete
+skinparam classAttributeIconSize 0
+skinparam classFontSize 11
+skinparam backgroundColor #FFFFFF
+skinparam class {
+  BackgroundColor #E7F5FF
+  BorderColor #1E40AF
+  ArrowColor #1E40AF
+}
+
+title Domain Layer - Complete Class Diagram (All Agents + Core Components)
+
+' ============================================
+' ABSTRACT BASE AGENT
+' ============================================
+abstract class BaseAgent {
+  - name: str
+  - version: str
+  - category: AgentCategory
+  - config: AgentConfig
+  - metrics: Dict[str, Any]
+  __
+  + __init__(config: AgentConfig)
+  + {abstract} analyze(context: AnalysisContext): List[Finding]
+  + get_metadata(): Dict[str, Any]
+  + log_metrics(): void
+  + emit_event(event_type: str, data: Dict): void
+  # _parse_ast(code: str): ast.AST
+  # _validate_context(context: AnalysisContext): bool
+}
+
+' ============================================
+' CONCRETE AGENT IMPLEMENTATIONS
+' ============================================
+class SecurityAgent {
+  - bandit_analyzer: BanditAnalyzer
+  - regex_patterns: List[Pattern]
+  - entropy_threshold: float = 4.5
+  - dangerous_functions: Set[str]
+  __
+  + analyze(context: AnalysisContext): List[Finding]
+  + detect_dangerous_functions(ast_tree: ast.AST): List[Finding]
+  + detect_sql_injection(code: str): List[Finding]
+  + detect_hardcoded_credentials(code: str): List[Finding]
+  + detect_weak_crypto(ast_tree: ast.AST): List[Finding]
+  - _calculate_shannon_entropy(text: str): float
+  - _is_potential_secret(value: str): bool
+}
+
+class SecurityAgentEnhanced {
+  - ai_explainer: AIExplainerService
+  - mcp_enricher: MCPContextEnricher
+  - enable_ai: bool = True
+  __
+  + analyze(context: AnalysisContext): List[Finding]
+  # _enrich_critical_findings(findings: List[Finding]): List[Finding]
+  - _should_generate_ai_explanation(finding: Finding): bool
+}
+
+class QualityAgent {
+  - radon_analyzer: RadonAnalyzer
+  - complexity_threshold: int = 10
+  - duplication_threshold: float = 0.20
+  - function_length_threshold: int = 100
+  __
+  + analyze(context: AnalysisContext): List[Finding]
+  + calculate_complexity(ast_tree: ast.AST): List[Finding]
+  + detect_code_duplication(code: str): List[Finding]
+  + measure_function_length(ast_tree: ast.AST): List[Finding]
+  + calculate_maintainability_index(code: str): float
+  - _visit_function_def(node: ast.FunctionDef): Dict
+}
+
+class PerformanceAgent {
+  - ast_visitor: ASTVisitor
+  - nested_loop_threshold: int = 3
+  - algorithmic_patterns: Dict[str, Pattern]
+  __
+  + analyze(context: AnalysisContext): List[Finding]
+  + detect_nested_loops(ast_tree: ast.AST): List[Finding]
+  + detect_inefficient_patterns(ast_tree: ast.AST): List[Finding]
+  + detect_expensive_operations_in_loops(ast_tree: ast.AST): List[Finding]
+  - _count_nested_loops(node: ast.Node): int
+  - _is_expensive_operation(node: ast.Call): bool
+}
+
+class StyleAgent {
+  - pylint_analyzer: PylintAnalyzer
+  - flake8_analyzer: Flake8Analyzer
+  - line_length_limit: int = 88
+  __
+  + analyze(context: AnalysisContext): List[Finding]
+  + check_pep8_compliance(code: str): List[Finding]
+  + check_docstrings(ast_tree: ast.AST): List[Finding]
+  + check_imports(ast_tree: ast.AST): List[Finding]
+  + check_naming_conventions(ast_tree: ast.AST): List[Finding]
+  - _validate_function_naming(name: str): bool
+  - _validate_class_naming(name: str): bool
+}
+
+' ============================================
+' ORCHESTRATOR AGENT
+' ============================================
+class OrchestratorAgent {
+  - agent_factory: AgentFactory
+  - event_bus: EventBus
+  - ai_explainer: Optional[AIExplainerService]
+  - executor: ThreadPoolExecutor
+  - registered_agents: List[str]
+  - timeout_seconds: int = 30
+  __
+  + orchestrate_analysis(context: AnalysisContext): CodeReview
+  + execute_agents_parallel(context: AnalysisContext): Dict[str, List[Finding]]
+  + calculate_quality_score(findings: List[Finding]): int
+  + handle_agent_failure(agent_name: str, error: Exception): void
+  - _aggregate_findings(results: Dict): List[Finding]
+  - _remove_duplicates(findings: List[Finding]): List[Finding]
+  - _sort_by_severity(findings: List[Finding]): List[Finding]
+}
+
+' ============================================
+' FACTORY PATTERN
+' ============================================
+class AgentFactory <<Singleton>> {
+  - {static} _instance: Optional[AgentFactory]
+  - _registry: Dict[str, Type[BaseAgent]]
+  - _instances: Dict[str, BaseAgent]
+  - _lock: threading.Lock
+  __
+  + {static} get_instance(): AgentFactory
+  + register_agent(name: str, agent_class: Type[BaseAgent]): void
+  + create_agent(name: str, config: AgentConfig): BaseAgent
+  + get_registered_agents(): List[str]
+  + unregister_agent(name: str): void
+  - __init__()
+  - {static} _reset_instance(): void
+}
+
+' ============================================
+' OBSERVER PATTERN (EVENT BUS)
+' ============================================
+class EventBus {
+  - _observers: List[EventObserver]
+  - _lock: threading.Lock
+  - _event_queue: Queue[Event]
+  __
+  + subscribe(observer: EventObserver): void
+  + unsubscribe(observer: EventObserver): void
+  + publish(event: Event): void
+  + notify_observers(event: Event): void
+  - _dispatch_event(event: Event): void
+}
+
+interface EventObserver {
+  + on_event(event: Event): void
+}
+
+class WebSocketObserver {
+  - connection: WebSocket
+  - client_id: str
+  __
+  + on_event(event: Event): void
+  + send_to_client(message: Dict): void
+  - _format_event(event: Event): str
+}
+
+class DatabaseObserver {
+  - repository: EventLogRepository
+  __
+  + on_event(event: Event): void
+  - _persist_event(event: Event): void
+}
+
+class LoggingObserver {
+  - logger: logging.Logger
+  - log_level: str
+  __
+  + on_event(event: Event): void
+  - _format_log_message(event: Event): str
+}
+
+' ============================================
+' DOMAIN MODELS
+' ============================================
+class Finding {
+  + id: UUID
+  + agent_type: str
+  + severity: Severity
+  + issue_type: str
+  + line_number: int
+  + code_snippet: str
+  + message: str
+  + suggestion: str
+  + metrics: Optional[Dict[str, Any]]
+  + ai_explanation: Optional[AIExplanation]
+  + mcp_references: List[str]
+  + created_at: datetime
+  __
+  + get_severity_penalty(): int
+  + to_dict(): Dict
+  + from_dict(data: Dict): Finding
+  + __eq__(other: Finding): bool
+  + __hash__(): int
+}
+
+class AIExplanation {
+  + explanation: str
+  + attack_example: Optional[str]
+  + fix_code: Optional[str]
+  + cwe_reference: str
+  + owasp_category: str
+  + confidence_score: float
+  + model_used: str
+  + generated_at: datetime
+  + generation_time_ms: int
+  __
+  + to_dict(): Dict
+  + from_dict(data: Dict): AIExplanation
+  + is_high_confidence(): bool
+}
+
+class CodeReview {
+  + id: UUID
+  + user_id: str
+  + filename: str
+  + quality_score: int
+  + status: ReviewStatus
+  + findings: List[Finding]
+  + total_findings: int
+  + created_at: datetime
+  + completed_at: Optional[datetime]
+  + error_message: Optional[str]
+  __
+  + add_finding(finding: Finding): void
+  + calculate_score(): int
+  + get_findings_by_severity(severity: Severity): List[Finding]
+  + get_findings_by_agent(agent_type: str): List[Finding]
+  + is_completed(): bool
+  + has_critical_issues(): bool
+}
+
+class AnalysisContext {
+  + analysis_id: UUID
+  + user_id: str
+  + filename: str
+  + code_content: str
+  + uploaded_at: datetime
+  + config: AnalysisConfig
+  __
+  + get_ast(): ast.AST
+  + get_lines(): List[str]
+  + get_line(line_number: int): str
+  + to_dict(): Dict
+}
+
+' ============================================
+' VALUE OBJECTS & ENUMS
+' ============================================
+enum Severity {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+  __
+  + get_penalty(): int
+  + get_color(): str
+}
+
+enum ReviewStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum AgentCategory {
+  SECURITY
+  QUALITY
+  PERFORMANCE
+  STYLE
+}
+
+class AgentConfig {
+  + enabled: bool
+  + timeout_seconds: int
+  + custom_rules: Dict[str, Any]
+  + thresholds: Dict[str, float]
+  __
+  + to_dict(): Dict
+  + from_dict(data: Dict): AgentConfig
+}
+
+class Event {
+  + event_type: str
+  + agent_name: Optional[str]
+  + review_id: UUID
+  + data: Dict[str, Any]
+  + timestamp: datetime
+  __
+  + to_dict(): Dict
+}
+
+' ============================================
+' INHERITANCE RELATIONSHIPS
+' ============================================
+BaseAgent <|-- SecurityAgent
+BaseAgent <|-- QualityAgent
+BaseAgent <|-- PerformanceAgent
+BaseAgent <|-- StyleAgent
+SecurityAgent <|-- SecurityAgentEnhanced
+
+' ============================================
+' ASSOCIATIONS
+' ============================================
+OrchestratorAgent --> AgentFactory : uses
+OrchestratorAgent --> EventBus : publishes to
+OrchestratorAgent --> CodeReview : creates
+OrchestratorAgent --> AnalysisContext : receives
+
+AgentFactory --> BaseAgent : creates
+AgentFactory ..> SecurityAgent : instantiates
+AgentFactory ..> QualityAgent : instantiates
+AgentFactory ..> PerformanceAgent : instantiates
+AgentFactory ..> StyleAgent : instantiates
+
+EventBus --> EventObserver : notifies
+EventObserver <|.. WebSocketObserver
+EventObserver <|.. DatabaseObserver
+EventObserver <|.. LoggingObserver
+
+BaseAgent --> AnalysisContext : analyzes
+BaseAgent --> Finding : produces
+BaseAgent --> AgentConfig : configured by
+
+Finding --> AIExplanation : has 0..1
+Finding --> Severity : has
+Finding ..> Event : generates
+
+CodeReview "1" *-- "*" Finding : contains
+CodeReview --> ReviewStatus : has
+CodeReview --> AnalysisContext : created from
+
+Event --> CodeReview : references
+
+' ============================================
+' NOTES
+' ============================================
+note right of BaseAgent
+  **Abstract Base Class**
+  Template Method pattern
+  All agents inherit from this
+  Defines common interface
+end note
+
+note right of AgentFactory
+  **Singleton Pattern**
+  Thread-safe instance creation
+  Centralized agent registration
+  Lazy initialization
+end note
+
+note bottom of EventBus
+  **Observer Pattern**
+  Decouples event producers
+  from event consumers
+  Thread-safe publishing
+end note
+
+note right of Finding
+  **Domain Model**
+  Immutable after creation
+  Value equality (by id)
+  Serializable to JSON
+end note
+
+note bottom of Severity
+  **Penalties:**
+  CRITICAL = -10 points
+  HIGH = -5 points
+  MEDIUM = -2 points
+  LOW = -1 point
+end note
+
+@enduml
