@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CodeGuard AI - Diagram Gallery</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        :root {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f5f7fa;
+            --bg-accent: #e7f5ff;
+            --text-primary: #1a202c;
+            --text-secondary: #4a5568;
+            --border-color: #e2e8f0;
+            --accent-color: #1e40af;
+            --accent-hover: #1e3a8a;
+            --shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        [data-theme="dark"] {
+            --bg-primary: #1a202c;
+            --bg-secondary: #2d3748;
+            --bg-accent: #2c5282;
+            --text-primary: #f7fafc;
+            --text-secondary: #cbd5e0;
+            --border-color: #4a5568;
+            --accent-color: #3b82f6;
+            --accent-hover: #2563eb;
+            --shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            transition: background 0.3s, color 0.3s;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            background: linear-gradient(135deg, var(--accent-color), var(--accent-hover));
+            color: white;
+            padding: 40px 20px;
+            text-align: center;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            box-shadow: var(--shadow);
+        }
+        
+        header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+        
+        header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+        
+        .metadata {
+            background: var(--bg-secondary);
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        
+        .metadata-item {
+            text-align: center;
+        }
+        
+        .metadata-item .number {
+            font-size: 2rem;
+            font-weight: bold;
+            color: var(--accent-color);
+        }
+        
+        .metadata-item .label {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+        
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+        
+        .search-box {
+            flex: 1;
+            min-width: 250px;
+            padding: 12px 20px;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 1rem;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            transition: border-color 0.3s;
+        }
+        
+        .search-box:focus {
+            outline: none;
+            border-color: var(--accent-color);
+        }
+        
+        .theme-toggle {
+            padding: 12px 24px;
+            background: var(--accent-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background 0.3s;
+        }
+        
+        .theme-toggle:hover {
+            background: var(--accent-hover);
+        }
+        
+        .category {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            margin-bottom: 30px;
+            overflow: hidden;
+            box-shadow: var(--shadow);
+        }
+        
+        .category-header {
+            background: var(--bg-accent);
+            padding: 20px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-left: 5px solid var(--accent-color);
+            transition: background 0.3s;
+        }
+        
+        .category-header:hover {
+            background: var(--accent-hover);
+            color: white;
+        }
+        
+        .category-header h2 {
+            font-size: 1.5rem;
+            margin: 0;
+        }
+        
+        .category-count {
+            background: var(--accent-color);
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+        }
+        
+        .diagrams-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+            padding: 20px;
+        }
+        
+        .diagram-card {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            overflow: hidden;
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        
+        .diagram-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+        }
+        
+        .diagram-preview {
+            width: 100%;
+            height: 220px;
+            background: var(--bg-accent);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .diagram-preview img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            padding: 10px;
+        }
+        
+        .diagram-info {
+            padding: 15px;
+        }
+        
+        .diagram-title {
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: var(--accent-color);
+            margin-bottom: 8px;
+        }
+        
+        .diagram-description {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            margin-bottom: 15px;
+        }
+        
+        .diagram-links {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .diagram-links a {
+            flex: 1;
+            text-align: center;
+            padding: 8px 12px;
+            background: var(--bg-accent);
+            color: var(--accent-color);
+            text-decoration: none;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            transition: background 0.3s, color 0.3s;
+        }
+        
+        .diagram-links a:hover {
+            background: var(--accent-color);
+            color: white;
+        }
+        
+        .collapsed .diagrams-grid {
+            display: none;
+        }
+        
+        .arrow {
+            transition: transform 0.3s;
+        }
+        
+        .collapsed .arrow {
+            transform: rotate(-90deg);
+        }
+        
+        footer {
+            text-align: center;
+            padding: 30px 20px;
+            color: var(--text-secondary);
+            border-top: 1px solid var(--border-color);
+            margin-top: 40px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📐 CodeGuard AI - Diagram Gallery</h1>
+            <p>Workshop 2 Design Documentation | Universidad Nacional de Colombia</p>
+            <p>Software Engineering II (2025-II)</p>
+        </header>
+        
+        <div class="metadata">
+            <div class="metadata-item">
+                <div class="number">30</div>
+                <div class="label">Total Diagrams</div>
+            </div>
+            <div class="metadata-item">
+                <div class="number">90</div>
+                <div class="label">Exported Files</div>
+            </div>
+            <div class="metadata-item">
+                <div class="number">7</div>
+                <div class="label">Categories</div>
+            </div>
+            <div class="metadata-item">
+                <div class="number">Nov 2, 2025</div>
+                <div class="label">Export Date</div>
+            </div>
+        </div>
+        
+        <div class="controls">
+            <input type="text" id="searchBox" class="search-box" placeholder="🔍 Search diagrams...">
+            <button id="themeToggle" class="theme-toggle">🌙 Dark Mode</button>
+        </div>
+        
+        <!-- Architecture Diagrams -->
+        <div class="category" data-category="architecture">
+            <div class="category-header" onclick="toggleCategory(this)">
+                <h2>🏛️ Architecture Diagrams</h2>
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <span class="category-count">7 diagrams</span>
+                    <span class="arrow">▼</span>
+                </div>
+            </div>
+            <div class="diagrams-grid">
+                <div class="diagram-card" data-name="c4-level1">
+                    <div class="diagram-preview"><img src="png/01-architecture/C4_Level1_SystemContext.png" alt="System Context" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22300%22 height=%22200%22%3E%3Crect width=%22300%22 height=%22200%22 fill=%22%23e7f5ff%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 fill=%22%234a5568%22 font-size=%2214%22%3ENo Preview%3C/text%3E%3C/svg%3E'"></div>
+                    <div class="diagram-info">
+                        <div class="diagram-title">System Context Diagram</div>
+                        <div class="diagram-description">High-level overview of system and external entities</div>
+                        <div class="diagram-links">
+                            <a href="png/01-architecture/C4_Level1_SystemContext.png" download>PNG</a>
+                            <a href="svg/01-architecture/C4_Level1_SystemContext.svg" download>SVG</a>
+                            <a href="pdf/01-architecture/C4_Level1_SystemContext.pdf" download>PDF</a>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="diagram-card" data-name="c4-level2">
+                    <div class="diagram-preview"><img src="png/01-architecture/C4_Level2_Container.png" alt="Container Diagram"></div>
+                    <div class="diagram-info">
+                        <div class="diagram-title">Container Diagram</div>
+                        <div class="diagram-description">Application containers, databases, and services</div>
+                        <div class="diagram-links">
+                            <a href="png/01-architecture/C4_Level2_Container.png" download>PNG</a>
+                            <a href="svg/01-architecture/C4_Level2_Container.svg" download>SVG</a>
+                            <a href="pdf/01-architecture/C4_Level2_Container.pdf" download>PDF</a>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="diagram-card" data-name="c4-backend">
+                    <div class="diagram-preview"><img src="png/01-architecture/C4_Level3_Component_Backend.png" alt="Backend Components"></div>
+                    <div class="diagram-info">
+                        <div class="diagram-title">Backend Components</div>
+                        <div class="diagram-description">Internal backend service components</div>
+                        <div class="diagram-links">
+                            <a href="png/01-architecture/C4_Level3_Component_Backend.png" download>PNG</a>
+                            <a href="svg/01-architecture/C4_Level3_Component_Backend.svg" download>SVG</a>
+                            <a href="pdf/01-architecture/C4_Level3_Component_Backend.pdf" download>PDF</a>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="diagram-card" data-name="c4-frontend">
+                    <div class="diagram-preview"><img src="png/01-architecture/C4_Level3_Component_Frontend.png" alt="Frontend Components"></div>
+                    <div class="diagram-info">
+                        <div class="diagram-title">Frontend Components</div>
+                        <div class="diagram-description">React frontend module structure</div>
+                        <div class="diagram-links">
+                            <a href="png/01-architecture/C4_Level3_Component_Frontend.png" download>PNG</a>
+                            <a href="svg/01-architecture/C4_Level3_Component_Frontend.svg" download>SVG</a>
+                            <a href="pdf/01-architecture/C4_Level3_Component_Frontend.pdf" download>PDF</a>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="diagram-card" data-name="c4-domain">
+                    <div class="diagram-preview"><img src="png/01-architecture/C4_Level4_Code_Domain.png" alt="Domain Layer"></div>
+                    <div class="diagram-info">
+                        <div class="diagram-title">Domain Layer Code</div>
+                        <div class="diagram-description">Core domain classes and relationships</div>
+                        <div class="diagram-links">
+                            <a href="png/01-architecture/C4_Level4_Code_Domain.png" download>PNG</a>
+                            <a href="svg/01-architecture/C4_Level4_Code_Domain.svg" download>SVG</a>
+                            <a href="pdf/01-architecture/C4_Level4_Code_Domain.pdf" download>PDF</a>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="diagram-card" data-name="deployment">
+                    <div class="diagram-preview"><img src="png/01-architecture/c4-deployment-architecture.png" alt="Deployment"></div>
+                    <div class="diagram-info">
+                        <div class="diagram-title">Deployment Architecture</div>
+                        <div class="diagram-description">Production deployment topology</div>
+                        <div class="diagram-links">
+                            <a href="png/01-architecture/c4-deployment-architecture.png" download>PNG</a>
+                            <a href="svg/01-architecture/c4-deployment-architecture.svg" download>SVG</a>
+                            <a href="pdf/01-architecture/c4-deployment-architecture.pdf" download>PDF</a>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="diagram-card" data-name="clean-architecture">
+                    <div class="diagram-preview"><img src="png/01-architecture/clean-architecture-layers.png" alt="Clean Architecture"></div>
+                    <div class="diagram-info">
+                        <div class="diagram-title">Clean Architecture Layers</div>
+                        <div class="diagram-description">Presentation, Application, Domain, Infrastructure</div>
+                        <div class="diagram-links">
+                            <a href="png/01-architecture/clean-architecture-layers.png" download>PNG</a>
+                            <a href="svg/01-architecture/clean-architecture-layers.svg" download>SVG</a>
+                            <a href="pdf/01-architecture/clean-architecture-layers.pdf" download>PDF</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Class Diagrams -->
+        <div class="category" data-category="class">
+            <div class="category-header" onclick="toggleCategory(this)">
+                <h2>📦 Class Diagrams</h2>
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <span class="category-count">5 diagrams</span>
+                    <span class="arrow">▼</span>
+                </div>
+            </div>
+            <div class="diagrams-grid">
+                <div class="diagram-card" data-name="domain-complete">
+                    <div class="diagram-preview"><img src="png/02-class-diagrams/uml-domain-layer-complete.png" alt="Domain Layer Complete"></div>
+                    <div class="diagram-info">
+                        <div class="diagram-title">Domain Layer - Complete</div>
+                        <div class="diagram-description">All domain entities, agents, and value objects</div>
+                        <div class="diagram-links">
+                            <a href="png/02-class-diagrams/uml-domain-layer-complete.png" download>PNG</a>
+                            <a href="svg/02-class-diagrams/uml-domain-layer-complete.svg" download>SVG</a>
+                            <a href="pdf/02-class-diagrams/uml-domain-layer-complete.pdf" download>PDF</a>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="diagram-card" data-name="application-services">
+                    <div class="diagram-preview"><img src="png/02-class-diagrams/uml-application-layer-services.png" alt="Application Services"></div>
+                    <div class="diagram-info">
+                        <div class="diagram-title">Application Layer Services</div>
+                        <div class="diagram-description">Services, DTOs, and application logic</div>
+                        <div class="diagram-links">
+                            <a href="png/02-class-diagrams/uml-application-layer-services.png" download>PNG</a>
+                            <a href="svg/02-class-diagrams/uml-application-layer-services.svg" download>SVG</a>
+                            <a href="pdf/02-class-diagrams/uml-application-layer-services.pdf" download>PDF</a>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="diagram-card" data-name="infrastructure-repos">
+                    <div class="diagram-preview"><img src="png/02-class-diagrams/uml-infrastructure-layer-repositories.png" alt="Infrastructure"></div>
+                    <div class="diagram-info">
+                        <div class="diagram-title">Infrastructure Layer</div>
+                        <div class="diagram-description">Repositories, ORM entities, external services</div>
+                        <div class="diagram-links">
+                            <a href="png/02-class-diagrams/uml-infrastructure-layer-repositories.png" download>PNG</a>
+                            <a href="svg/02-class-diagrams/uml-infrastructure-layer-repositories.svg" download>SVG</a>
+                            <a href="pdf/02-class-diagrams/uml-infrastructure-layer-repositories.pdf" download>PDF</a>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="diagram-card" data-name="agents-hierarchy">
+                    <div class="diagram-preview"><img src="png/02-class-diagrams/uml-domain-agents-hierarchy.png" alt="Agents Hierarchy"></div>
+                    <div class="diagram-info">
+                        <div class="diagram-title">Agents Hierarchy</div>
+                        <div class="diagram-description">BaseAgent and concrete agent implementations</div>
+                        <div class="diagram-links">
+                            <a href="png/02-class-diagrams/uml-domain-agents-hierarchy.png" download>PNG</a>
+                            <a href="svg/02-class-diagrams/uml-domain-agents-hierarchy.svg" download>SVG</a>
+                            <a href="pdf/02-class-diagrams/uml-domain-agents-hierarchy.pdf" download>PDF</a>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="diagram-card" data-name="models-relationships">
+                    <div class="diagram-preview"><img src="png/02-class-diagrams/uml-domain-models-relationships.png" alt="Domain Models"></div>
+                    <div class="diagram-info">
+                        <div class="diagram-title">Domain Models</div>
+                        <div class="diagram-description">Entities, value objects, enums, relationships</div>
+                        <div class="diagram-links">
+                            <a href="png/02-class-diagrams/uml-domain-models-relationships.png" download>PNG</a>
+                            <a href="svg/02-class-diagrams/uml-domain-models-relationships.svg" download>SVG</a>
+                            <a href="pdf/02-class-diagrams/uml-domain-models-relationships.pdf" download>PDF</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Sequence Diagrams -->
+        <div class="category" data-category="sequence">
+            <div class="category-header" onclick="toggleCategory(this)">
+                <h2>⏱️ Sequence Diagrams</h2>
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <span class="category-count">5 diagrams</span>
+                    <span class="arrow">▼</span>
+                </div>
+            </div>
+            <div class="diagrams-grid">
+                <div class="diagram-card" data-name="workflow">
+                    <div class="diagram-preview"><img src="png/03-sequence-diagrams/uml-seq-code-analysis-workflow.png" alt="Analysis Workflow"></div>
+                    <div class="diagram-info">
+                        <div class="diagram-title">Code Analysis Workflow</div>
+                        <div class="diagram-description">Complete flow from upload to results</div>
+                        <div class="diagram-links">
+                            <a href="png/03-sequence-diagrams/uml-seq-code-analysis-workflow.png" download>PNG</a>
+                            <a href="svg/03-sequence-diagrams/uml-seq-code-analysis-workflow.svg" download>SVG</a>
+                            <a href="pdf/03-sequence-diagrams/uml-seq-code-analysis-workflow.pdf" download>PDF</a>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="diagram-card" data-name="ai-explanation">
+                    <div class="diagram-preview"><img src="png/03-sequence-diagrams/uml-seq-ai-explanation-generation.png" alt="AI Explanation"></div>
+                    <div class="diagram-info">
+                        <div class="diagram-title">AI Explanation Generation</div>
+                        <div class="diagram-description">Gemini API integration with MCP context</div>
+                        <div class="diagram-links">
+                            <a href="png/03-sequence-diagrams/uml-seq-ai-explanation-generation.png" download>PNG</a>
+                            <a href="svg/03-sequence-diagrams/uml-seq-ai-explanation-generation.svg" download>SVG</a>
+                            <a href="pdf/03-sequence-diagrams/uml-seq-ai-explanation-generation.pdf" download>PDF</a>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="diagram-card" data-name="parallel-agents">
+                    <div class="diagram-preview"><img src="png/03-sequence-diagrams/uml-seq-parallel-agent-execution.png" alt="Parallel Agents"></div>
+                    <div class="diagram-info">
+                        <div class="diagram-title">Parallel Agent Execution</div>
+                        <div class="diagram-description">ThreadPoolExecutor orchestrating 4 agents</div>
+                        <div class="diagram-links">
+                            <a href="png/03-sequence-diagrams/uml-seq-parallel-agent-execution.png" download>PNG</a>
+                            <a href="svg/03-sequence-diagrams/uml-seq-parallel-agent-execution.svg" download>SVG</a>
+                            <a href="pdf/03-sequence-diagrams/uml-seq-parallel-agent-execution.pdf" download>PDF</a>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="diagram-card" data-name="admin-config">
+                    <div class="diagram-preview"><img src="png/03-sequence-diagrams/uml-seq-admin-configuration.png" alt="Admin Config"></div>
+                    <div class="diagram-info">
+                        <div class="diagram-title">Admin Configuration</div>
+                        <div class="diagram-description">Admin dashboard configuration workflow</div>
+                        <div class="diagram-links">
+                            <a href="png/03-sequence-diagrams/uml-seq-admin-configuration.png" download>PNG</a>
+                            <a href="svg/03-sequence-diagrams/uml-seq-admin-configuration.svg" download>SVG</a>
+                            <a href="pdf/03-sequence-diagrams/uml-seq-admin-configuration.pdf" download>PDF</a>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="diagram-card" data-name="websocket">
+                    <div class="diagram-preview"><img src="png/03-sequence-diagrams/uml-seq-websocket-real-time-progress.png" alt="WebSocket"></div>
+                    <div class="diagram-info">
+                        <div class="diagram-title">WebSocket Real-time Progress</div>
+                        <div class="diagram-description">Real-time progress updates to frontend</div>
+                        <div class="diagram-links">
+                            <a href="png/03-sequence-diagrams/uml-seq-websocket-real-time-progress.png" download>PNG</a>
+                            <a href="svg/03-sequence-diagrams/uml-seq-websocket-real-time-progress.svg" download>SVG</a>
+                            <a href="pdf/03-sequence-diagrams/uml-seq-websocket-real-time-progress.pdf" download>PDF</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Activity Diagrams -->
+        <div class="category" data-category="activity">
+            <div class="category-header" onclick="toggleCategory(this)">
+                <h2>🔄 Activity Diagrams</h2>
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <span class="category-count">5 diagrams</span>
+                    <span class="arrow">▼</span>
+                </div>
+            </div>
+            <div class="diagrams-grid">
+                <div class="diagram-card" data-name="act-workflow">
+                    <div class="diagram-preview"><img src="png/04-activity-diagrams/uml-act-analysis-workflow-complete.png" alt="Activity Workflow"></div>
+                    <div class="diagram-info">
+                        <div class="diagram-title">Analysis Workflow</div>
+                        <div class="diagram-description">High-level BPMN-style analysis workflow</div>
+                        <div class="diagram-links">
+                            <a href="png/04-activity-diagrams/uml-act-analysis-workflow-complete.png" download>PNG</a>
+                            <a href="svg/04-activity-diagrams/uml-act-analysis-workflow-complete.svg" download>SVG</a>
+                            <a href="pdf/04-activity-diagrams/uml-act-analysis-workflow-complete.pdf" download>PDF</a>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="diagram-card" data-name="act-parallel">
+                    <div class="diagram-preview"><img src="png/04-activity-diagrams/uml-act-parallel-agent-execution.png" alt="Parallel Activity"></div>
+                    <div class="diagram-info">
+                        <div class="diagram-title">Parallel Agents (Activity)</div>
+                        <div class="diagram-description">Detailed parallel execution of agents</div>
+                        <div class="diagram-links">
+                            <a href="png/04-activity-diagrams/uml-act-parallel-agent-execution.png" download>PNG</a>
+                            <a href="svg/04-activity-diagrams/uml-act-parallel-agent-execution.svg" download>SVG</a>
+                            <a href="pdf/04-activity-diagrams/uml-act-parallel-agent-execution.pdf" download>PDF</a>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="diagram-card" data-name="act-ai">
+                    <div class="diagram-preview"><img src="png/04-activity-diagrams/uml-act-ai-explanation-subprocess.png" alt="AI Subprocess"></div>
+                    <div class="diagram-info">
+                        <div class="diagram-title">AI Explanation Subprocess</div>
+                        <div class="diagram-description">AI generation with caching and retry logic</div>
+                        <div class="diagram-links">
+                            <a href="png/04-activity-diagrams/uml-act-ai-explanation-subprocess.png" download>PNG</a>
+                            <a href="svg/04-activity-diagrams/uml-act-ai-explanation-subprocess.svg" download>SVG</a>
+                            <a href="pdf/04-activity-diagrams/uml-act-ai-explanation-subprocess.pdf" download>PDF</a>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="diagram-card" data-name="act-mcp">
+                    <div class="diagram-preview"><img src="png/04-activity-diagrams/uml-act-mcp-context-enrichment.png" alt="MCP Enrichment"></div>
+                    <div class="diagram-info">
+                        <div class="diagram-title">MCP Context Enrichment</div>
+                        <div class="diagram-description">Parallel MCP server queries</div>
+                        <div class="diagram-links">
+                            <a href="png/04-activity-diagrams/uml-act-mcp-context-enrichment.png" download>PNG</a>
+                            <a href="svg/04-activity-diagrams/uml-act-mcp-context-enrichment.svg" download>SVG</a>
+                            <a href="pdf/04-activity-diagrams/uml-act-mcp-context-enrichment.pdf" download>PDF</a>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="diagram-card" data-name="act-admin">
+                    <div class="diagram-preview"><img src="png/04-activity-diagrams/uml-act-admin-config-workflow.png" alt="Admin Workflow"></div>
+                    <div class="diagram-info">
+                        <div class="diagram-title">Admin Config Workflow</div>
+                        <div class="diagram-description">Admin configuration and validation process</div>
+                        <div class="diagram-links">
+                            <a href="png/04-activity-diagrams/uml-act-admin-config-workflow.png" download>PNG</a>
+                            <a href="svg/04-activity-diagrams/uml-act-admin-config-workflow.svg" download>SVG</a>
+                            <a href="pdf/04-activity-diagrams/uml-act-admin-config-workflow.pdf" download>PDF</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- State Diagrams -->
+        <div class="category" data-category="state">
+            <div class="category-header" onclick="toggleCategory(this)">
+                <h2>🔀 State Diagrams</h2>
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <span class="category-count">3 diagrams</span>
+                    <span class="arrow">▼</span>
+                </div>
+            </div>
+            <div class="diagrams-grid">
+                <div class="diagram-card" data-name="state-review">
+                    <div class="diagram-preview"><img src="png/05-state-diagrams/uml-state-codereview-lifecycle.png" alt="Review Lifecycle"></div>
+                    <div class="diagram-info">
+                        <div class="diagram-title">CodeReview Lifecycle</div>
+                        <div class="diagram-description">PENDING → PROCESSING → COMPLETED/FAILED</div>
+                        <div class="diagram-links">
+                            <a href="png/05-state-diagrams/uml-state-codereview-lifecycle.png" download>PNG</a>
+                            <a href="svg/05-state-diagrams/uml-state-codereview-lifecycle.svg" download>SVG</a>
+                            <a href="pdf/05-state-diagrams/uml-state-codereview-lifecycle.pdf" download>PDF</a>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="diagram-card" data-name="state-analysis">
+                    <div class="diagram-preview"><img src="png/05-state-diagrams/uml-state-analysis-status.png" alt="Analysis Status"></div>
+                    <div class="diagram-info">
+                        <div class="diagram-title">Analysis Status</div>
+                        <div class="diagram-description">User perspective of analysis status</div>
+                        <div class="diagram-links">
+                            <a href="png/05-state-diagrams/uml-state-analysis-status.png" download>PNG</a>
+                            <a href="svg/05-state-diagrams/uml-state-analysis-status.svg" download>SVG</a>
+                            <a href="pdf/05-state-diagrams/uml-state-analysis-status.pdf" download>PDF</a>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="diagram-card" data-name="state-agent">
+                    <div class="diagram-preview"><img src="png/05-state-diagrams/uml-state-agent-execution.png" alt="Agent Execution"></div>
+                    <div class="diagram-info">
+                        <div class="diagram-title">Agent Execution</div>
+                        <div class="diagram-description">Individual agent execution states</div>
+                        <div class="diagram-links">
+                            <a href="png/05-state-diagrams/uml-state-agent-execution.png" download>PNG</a>
+                            <a href="svg/05-state-diagrams/uml-state-agent-execution.svg" download>SVG</a>
+                            <a href="pdf/05-state-diagrams/uml-state-agent-execution.pdf" download>PDF</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Component Diagrams -->
+        <div class="category" data-category="component">
+            <div class="category-header" onclick="toggleCategory(this)">
+                <h2>🧩 Component Diagrams</h2>
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <span class="category-count">4 diagrams</span>
+                    <span class="arrow">▼</span>
+                </div>
+            </div>
+            <div class="diagrams-grid">
+                <div class="diagram-card" data-name="comp-ai">
+                    <div class="diagram-preview"><img src="png/07-component-diagrams/uml-comp-ai-mcp-integration.png" alt="AI/MCP Integration"></div>
+                    <div class="diagram-info">
+                        <div class="diagram-title">AI/MCP Integration</div>
+                        <div class="diagram-description">Gemini and MCP server components</div>
+                        <div class="diagram-links">
+                            <a href="png/07-component-diagrams/uml-comp-ai-mcp-integration.png" download>PNG</a>
+                            <a href="svg/07-component-diagrams/uml-comp-ai-mcp-integration.svg" download>SVG</a>
+                            <a href="pdf/07-component-diagrams/uml-comp-ai-mcp-integration.pdf" download>PDF</a>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="diagram-card" data-name="comp-backend">
+                    <div class="diagram-preview"><img src="png/07-component-diagrams/uml-comp-backend-services.png" alt="Backend Services"></div>
+                    <div class="diagram-info">
+                        <div class="diagram-title">Backend Services</div>
+                        <div class="diagram-description">FastAPI services and controllers</div>
+                        <div class="diagram-links">
+                            <a href="png/07-component-diagrams/uml-comp-backend-services.png" download>PNG</a>
+                            <a href="svg/07-component-diagrams/uml-comp-backend-services.svg" download>SVG</a>
+                            <a href="pdf/07-component-diagrams/uml-comp-backend-services.pdf" download>PDF</a>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="diagram-card" data-name="comp-frontend">
+                    <div class="diagram-preview"><img src="png/07-component-diagrams/uml-comp-frontend-modules.png" alt="Frontend Modules"></div>
+                    <div class="diagram-info">
+                        <div class="diagram-title">Frontend Modules</div>
+                        <div class="diagram-description">React component architecture</div>
+                        <div class="diagram-links">
+                            <a href="png/07-component-diagrams/uml-comp-frontend-modules.png" download>PNG</a>
+                            <a href="svg/07-component-diagrams/uml-comp-frontend-modules.svg" download>SVG</a>
+                            <a href="pdf/07-component-diagrams/uml-comp-frontend-modules.pdf" download>PDF</a>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="diagram-card" data-name="comp-infrastructure">
+                    <div class="diagram-preview"><img src="png/07-component-diagrams/uml-comp-infrastructure-services.png" alt="Infrastructure"></div>
+                    <div class="diagram-info">
+                        <div class="diagram-title">Infrastructure Services</div>
+                        <div class="diagram-description">Repositories, external clients, cache</div>
+                        <div class="diagram-links">
+                            <a href="png/07-component-diagrams/uml-comp-infrastructure-services.png" download>PNG</a>
+                            <a href="svg/07-component-diagrams/uml-comp-infrastructure-services.svg" download>SVG</a>
+                            <a href="pdf/07-component-diagrams/uml-comp-infrastructure-services.pdf" download>PDF</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <footer>
+            <p><strong>CodeGuard AI</strong> - Multi-Agent Code Review System</p>
+            <p>Workshop 2 Design Documentation</p>
+            <p>Universidad Nacional de Colombia | Software Engineering II (2025-II)</p>
+            <p>Exported: November 2, 2025</p>
+        </footer>
+    </div>
+    
+    <script>
+        const themeToggle = document.getElementById('themeToggle');
+        const currentTheme = localStorage.getItem('theme') || 'light';
+        
+        if (currentTheme === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+            themeToggle.textContent = '☀️ Light Mode';
+        }
+        
+        themeToggle.addEventListener('click', () => {
+            const theme = document.documentElement.getAttribute('data-theme');
+            if (theme === 'dark') {
+                document.documentElement.removeAttribute('data-theme');
+                themeToggle.textContent = '🌙 Dark Mode';
+                localStorage.setItem('theme', 'light');
+            } else {
+                document.documentElement.setAttribute('data-theme', 'dark');
+                themeToggle.textContent = '☀️ Light Mode';
+                localStorage.setItem('theme', 'dark');
+            }
+        });
+        
+        function toggleCategory(header) {
+            const category = header.parentElement;
+            category.classList.toggle('collapsed');
+        }
+        
+        const searchBox = document.getElementById('searchBox');
+        searchBox.addEventListener('input', (e) => {
+            const searchTerm = e.target.value.toLowerCase();
+            const cards = document.querySelectorAll('.diagram-card');
+            
+            cards.forEach(card => {
+                const name = card.getAttribute('data-name').toLowerCase();
+                const title = card.querySelector('.diagram-title').textContent.toLowerCase();
+                const description = card.querySelector('.diagram-description').textContent.toLowerCase();
+                
+                if (name.includes(searchTerm) || title.includes(searchTerm) || description.includes(searchTerm)) {
+                    card.style.display = 'block';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        });
+    </script>
+</body>
+</html>
