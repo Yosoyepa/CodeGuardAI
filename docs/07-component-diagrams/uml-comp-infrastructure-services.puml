@@ -1,0 +1,80 @@
+@startuml uml-comp-infrastructure-services
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+LAYOUT_WITH_LEGEND()
+
+title Component Diagram - Infrastructure Services Layer
+
+Container_Boundary(infra, "Infrastructure Layer") {
+    Boundary(databases, "Databases") {
+        Component(supabase, "Supabase PostgreSQL", "PostgreSQL 15", "code_reviews, agent_findings\nusers, ai_usage_metrics\nEvent logs, config")
+        
+        Component(redis, "Redis Cache", "Upstash Redis", "AI explanation cache\nSession data\nRate limit counters")
+    }
+    
+    Boundary(repositories, "Data Access Layer (Repositories)") {
+        Component(reviewRepo, "CodeReviewRepository", "SQLAlchemy", "Create, read, update reviews\nEncryption/decryption")
+        
+        Component(findingRepo, "AgentFindingRepository", "SQLAlchemy", "Bulk insert findings\nQuery by severity\nFilter by agent")
+        
+        Component(userRepo, "UserRepository", "SQLAlchemy", "Manage users\nTrack quotas")
+        
+        Component(configRepo, "ConfigRepository", "SQLAlchemy", "Store/retrieve configs\nCache invalidation")
+    }
+    
+    Boundary(externalServices, "External Services") {
+        Component(clerkAuth, "Clerk Auth Client", "Clerk SDK", "Validate JWTs\nFetch user profiles")
+        
+        Component(geminiClient, "Gemini API Client", "google-generativeai", "Call Gemini Flash\nManage rate limits\nRetry logic")
+        
+        Component(vertexClient, "Vertex AI Client", "google-cloud-aiplatform", "Call Gemini Pro\nHandle quota")
+        
+        Component(mcpClients, "MCP Clients", "mcp-sdk", "Query OWASP, CVE, Custom\nHandle stdio connections")
+    }
+    
+    Boundary(utilities, "Utilities & Helpers") {
+        Component(encryption, "AES Encryptor", "cryptography lib", "Encrypt/decrypt code\nKey management")
+        
+        Component(logger, "Logger", "structlog", "Structured logging\nLog aggregation")
+        
+        Component(metrics, "Metrics Collector", "prometheus-client", "Performance metrics\nAPI latency\nCache hit rate")
+    }
+}
+
+Rel(reviewRepo, supabase, "SQL queries")
+Rel(findingRepo, supabase, "SQL queries")
+Rel(userRepo, supabase, "SQL queries")
+Rel(configRepo, supabase, "SQL queries")
+Rel(configRepo, redis, "Cache config")
+
+Rel(reviewRepo, encryption, "Encrypts code_content")
+
+Rel(clerkAuth, clerkAuth, "External Clerk API")
+
+Rel(geminiClient, geminiClient, "Call Gemini API")
+Rel(vertexClient, vertexClient, "Call Vertex AI")
+
+Rel(mcpClients, mcpClients, "MCP stdio protocol")
+
+Rel(reviewRepo, logger, "Log operations")
+Rel(geminiClient, metrics, "Track API metrics")
+
+note right of repositories
+  **Repository Pattern Benefits:**
+  • Abstract database access
+  • Easy to mock in tests
+  • Centralize SQL queries
+  • Handle encryption
+  • Implement caching
+end note
+
+note right of externalServices
+  **External Service Integration:**
+  • Circuit breaker for failures
+  • Exponential backoff for retries
+  • Rate limit handling
+  • Graceful degradation
+  • Monitoring & alerts
+end note
+
+@enduml

@@ -1,0 +1,147 @@
+@startuml uml-state-codereview-lifecycle
+skinparam backgroundColor #FFFFFF
+skinparam state {
+  BackgroundColor<<initial>> #E7F5FF
+  BackgroundColor<<processing>> #FEF3C7
+  BackgroundColor<<success>> #D1FAE5
+  BackgroundColor<<error>> #FEE2E2
+  BorderColor #1E40AF
+  FontSize 11
+}
+
+title State Diagram - CodeReview Entity Lifecycle
+
+[*] --> PENDING : User uploads file\nPOST /api/v1/analyze
+
+state PENDING <<initial>> {
+  PENDING : **Entry actions:**
+  PENDING : • Create CodeReview entity
+  PENDING : • Store encrypted code_content
+  PENDING : • Set status = 'PENDING'
+  PENDING : • Generate analysis_id (UUID)
+  PENDING : • Set created_at timestamp
+}
+
+PENDING --> PROCESSING : OrchestratorAgent.analyze() called
+
+state PROCESSING <<processing>> {
+  PROCESSING : **Entry actions:**
+  PROCESSING : • Emit ANALYSIS_STARTED event
+  PROCESSING : • Initialize ThreadPoolExecutor(4)
+  PROCESSING : • Set status = 'PROCESSING'
+  PROCESSING : 
+  PROCESSING : **During:**
+  PROCESSING : • Execute 4 agents in parallel
+  PROCESSING : • Emit AGENT_COMPLETED events
+  PROCESSING : • Handle agent timeouts (30s)
+  PROCESSING : • Monitor progress percentage
+  PROCESSING : 
+  PROCESSING : **Exit actions:**
+  PROCESSING : • Aggregate all findings
+  PROCESSING : • Shutdown executor gracefully
+  
+  state "Agent Execution" as AgentExec {
+    [*] --> RunningAgents
+    
+    state RunningAgents {
+      RunningAgents : SecurityAgent (Thread 1)
+      RunningAgents : QualityAgent (Thread 2)
+      RunningAgents : PerformanceAgent (Thread 3)
+      RunningAgents : StyleAgent (Thread 4)
+    }
+    
+    RunningAgents --> AgentTimeout : Timeout exceeded (30s)
+    RunningAgents --> AllComplete : All agents done
+    
+    AgentTimeout : **Graceful degradation:**
+    AgentTimeout : • Mark agent as 'timed_out'
+    AgentTimeout : • Save partial results
+    AgentTimeout : • Continue with other agents
+    
+    AgentTimeout --> AllComplete : Proceed with partial results
+  }
+}
+
+PROCESSING --> COMPLETED : All agents complete\nAND no fatal errors
+
+state COMPLETED <<success>> {
+  COMPLETED : **Entry actions:**
+  COMPLETED : • Calculate quality_score (0-100)
+  COMPLETED : • Persist findings to database
+  COMPLETED : • Set completed_at timestamp
+  COMPLETED : • Set status = 'COMPLETED'
+  COMPLETED : • Emit ANALYSIS_COMPLETED event
+  COMPLETED : 
+  COMPLETED : **Postconditions:**
+  COMPLETED : • quality_score ∈ [0, 100]
+  COMPLETED : • total_findings = COUNT(agent_findings)
+  COMPLETED : • Result cached for 24 hours
+  COMPLETED : • User can view/export results
+}
+
+PROCESSING --> FAILED : Fatal error occurred\n(parse error, DB unavailable)
+
+state FAILED <<error>> {
+  FAILED : **Entry actions:**
+  FAILED : • Log error details (stack trace)
+  FAILED : • Set error_message field
+  FAILED : • Set status = 'FAILED'
+  FAILED : • Emit ANALYSIS_FAILED event
+  FAILED : 
+  FAILED : **Error handling:**
+  FAILED : • Transient errors → retry queue
+  FAILED : • Fatal errors → user notification
+  FAILED : • Partial results preserved
+  FAILED : • Admin alerted (if critical)
+}
+
+COMPLETED --> [*] : Analysis finalized\n(terminal state)
+FAILED --> [*] : Error handled\n(terminal state)
+
+note bottom of PENDING
+  **Preconditions:**
+  • File validated (.py, ≤10MB, UTF-8)
+  • User authenticated (JWT valid)
+  • Daily quota not exceeded (10/day)
+  • No concurrent analysis for user
+end note
+
+note right of PROCESSING
+  **Parallel Execution:**
+  • ThreadPoolExecutor(max_workers=4)
+  • Each agent timeout: 30 seconds
+  • WebSocket updates: every completion
+  • Graceful degradation on failures
+  • Progress: 0% → 25% → 50% → 75% → 100%
+end note
+
+note bottom of COMPLETED
+  **Quality Score Formula:**
+  score = max(0, 100 - Σ(penalties))
+  
+  **Penalties:**
+  • Critical: -10 points
+  • High: -5 points
+  • Medium: -2 points
+  • Low: -1 point
+  
+  **Examples:**
+  • 0 findings: score = 100
+  • 1 critical: score = 90
+  • 2 critical + 3 high: score = 65
+end note
+
+note right of FAILED
+  **Common Fatal Errors:**
+  • SyntaxError (invalid Python)
+  • MemoryError (file too large)
+  • DatabaseConnectionError
+  • UnexpectedAgentCrash
+  
+  **Recovery Actions:**
+  • Log to Sentry
+  • Email admin if ≥3 failures/hour
+  • User sees friendly error message
+end note
+
+@enduml

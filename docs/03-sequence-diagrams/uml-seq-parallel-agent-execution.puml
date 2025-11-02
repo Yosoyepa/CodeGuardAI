@@ -1,0 +1,99 @@
+@startuml uml-seq-parallel-agent-execution
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam backgroundColor #FFFFFF
+
+title Sequence Diagram - Parallel Agent Execution (ThreadPoolExecutor)
+
+participant "OrchestratorAgent" as Orch
+participant "ThreadPoolExecutor" as Executor
+participant "SecurityAgent" as SecAgent
+participant "QualityAgent" as QualAgent
+participant "PerformanceAgent" as PerfAgent
+participant "StyleAgent" as StyleAgent
+participant "EventBus" as EventBus
+
+-> Orch: orchestrate_analysis(context)
+activate Orch
+
+Orch -> Orch: registered_agents = [\nSecurityAgent,\nQualityAgent,\nPerformanceAgent,\nStyleAgent]
+
+Orch -> Executor: executor = ThreadPoolExecutor\n(max_workers=4)
+activate Executor
+
+note over Orch
+    **Parallel Execution Start**
+    All agents run concurrently
+    Timeout: 30 seconds per agent
+end note
+
+par "SecurityAgent Thread"
+    Orch -> SecAgent: future1 = executor.submit(\nSecurityAgent.analyze, context)
+    activate SecAgent
+    SecAgent -> EventBus: publish(AGENT_STARTED,\nagent='SecurityAgent')
+    SecAgent -> SecAgent: Parse AST tree
+    SecAgent -> SecAgent: Detect dangerous functions\n(eval, exec, pickle)
+    SecAgent -> SecAgent: Detect SQL injection patterns
+    SecAgent -> SecAgent: Find hardcoded credentials
+    SecAgent -> EventBus: publish(AGENT_COMPLETED,\nagent='SecurityAgent',\nfindings_count=3)
+    SecAgent --> Executor: Return findings list\n[Finding1, Finding2, Finding3]
+    deactivate SecAgent
+else "QualityAgent Thread"
+    Orch -> QualAgent: future2 = executor.submit(\nQualityAgent.analyze, context)
+    activate QualAgent
+    QualAgent -> EventBus: publish(AGENT_STARTED,\nagent='QualityAgent')
+    QualAgent -> QualAgent: Calculate cyclomatic complexity\n(Radon)
+    QualAgent -> QualAgent: Detect code duplication
+    QualAgent -> QualAgent: Measure function length
+    QualAgent -> EventBus: publish(AGENT_COMPLETED,\nagent='QualityAgent',\nfindings_count=2)
+    QualAgent --> Executor: Return findings list\n[Finding4, Finding5]
+    deactivate QualAgent
+else "PerformanceAgent Thread"
+    Orch -> PerfAgent: future3 = executor.submit(\nPerformanceAgent.analyze, context)
+    activate PerfAgent
+    PerfAgent -> EventBus: publish(AGENT_STARTED,\nagent='PerformanceAgent')
+    PerfAgent -> PerfAgent: Detect nested loops\n(>3 levels)
+    PerfAgent -> PerfAgent: Identify inefficient algorithms\n(O(n²) patterns)
+    PerfAgent -> EventBus: publish(AGENT_COMPLETED,\nagent='PerformanceAgent',\nfindings_count=1)
+    PerfAgent --> Executor: Return findings list\n[Finding6]
+    deactivate PerfAgent
+else "StyleAgent Thread"
+    Orch -> StyleAgent: future4 = executor.submit(\nStyleAgent.analyze, context)
+    activate StyleAgent
+    StyleAgent -> EventBus: publish(AGENT_STARTED,\nagent='StyleAgent')
+    StyleAgent -> StyleAgent: Check PEP 8 compliance\n(pylint + flake8)
+    StyleAgent -> StyleAgent: Validate docstrings
+    StyleAgent -> StyleAgent: Detect unused imports
+    StyleAgent -> EventBus: publish(AGENT_COMPLETED,\nagent='StyleAgent',\nfindings_count=5)
+    StyleAgent --> Executor: Return findings list\n[Finding7...Finding11]
+    deactivate StyleAgent
+end
+
+note over Executor
+    **Synchronization Point**
+    Wait for all futures to complete
+    or timeout after 30 seconds
+end note
+
+Orch -> Executor: results = executor.get_results(\ntimeout=30)
+Executor --> Orch: aggregated_results = {\n'SecurityAgent': [Finding1, Finding2, Finding3],\n'QualityAgent': [Finding4, Finding5],\n'PerformanceAgent': [Finding6],\n'StyleAgent': [Finding7...Finding11]}
+
+deactivate Executor
+
+Orch -> Orch: all_findings = merge_results(\naggregated_results)
+
+Orch -> Orch: quality_score = calculate_score(\nall_findings)\n# score = max(0, 100 - Σ(penalties))
+
+Orch -> EventBus: publish(ANALYSIS_COMPLETED,\nfindings_count=11,\nquality_score=72)
+
+<-- Orch: Return CodeReview object\n(findings + quality_score)
+deactivate Orch
+
+note right of Orch
+    **Performance Metrics**
+    • Sequential time: ~15 seconds
+    • Parallel time: ~4 seconds
+    • Speedup: 3.75×
+end note
+
+@enduml

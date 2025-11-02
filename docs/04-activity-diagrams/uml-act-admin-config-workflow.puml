@@ -1,0 +1,157 @@
+@startuml uml-act-admin-config-workflow
+skinparam backgroundColor #FFFFFF
+skinparam activityBackgroundColor #E7F5FF
+skinparam activityBorderColor #1E40AF
+skinparam activityFontSize 10
+skinparam activityDiamondBackgroundColor #FEF3C7
+
+title Activity Diagram - Admin Configuration Workflow (Sprint 4)
+
+start
+
+:Admin logs into CodeGuard AI;
+
+:Navigate to Admin Dashboard;
+
+:Clerk OAuth redirects\n(Google/GitHub login);
+
+if (User role = admin?) then (yes)
+  :Grant access to admin panel;
+else (no)
+  :Return HTTP 403 (Forbidden);
+  stop
+endif
+
+:Load current system configuration\nfrom database;
+
+:Display Admin Dashboard tabs:\n1. Agents\n2. Rules\n3. AI Settings\n4. Team Metrics;
+
+repeat
+  :Admin selects tab to configure;
+
+  if (Selected tab = Agents?) then (yes)
+    partition "Agent Configuration" {
+      :Display all registered agents\nwith toggle switches;
+      
+      :For each agent show:\n• Agent name\n• Enable/Disable toggle\n• Version\n• Last execution time\n• Edit button;
+      
+      :Admin toggles agent:\n• Enable SecurityAgent\n• Disable StyleAgent\n• Keep QualityAgent enabled;
+      
+      :Click "Save Configuration";
+      
+      :Validate no conflicts\n(e.g., disable all agents);
+      
+      :Persist to agent_configs table:\nUPDATE agent_configs\nSET is_enabled = true/false,\n    updated_at = now(),\n    updated_by = admin.id;
+      
+      :Emit CONFIG_UPDATED event\nto connected backend instances;
+      
+      :Invalidate configuration cache;
+      
+      :Show success notification:\n"Configuration saved";
+    }
+  else if (Selected tab = Rules?) then (yes)
+    partition "Agent Rules Configuration" {
+      :Display detection rules per agent;
+      
+      :For each rule show:\n• Rule name (detect_eval)\n• Severity level\n• Enable/Disable checkbox\n• Parameters (threshold);
+      
+      :Admin modifies rules:\n• Disable \"detect_eval\" for SecurityAgent\n• Change complexity threshold\n  from 10 to 15 (QualityAgent)\n• Enable \"nested_loops_detection\"\n  (PerformanceAgent);
+      
+      :Click "Save Rules";
+      
+      :Validate parameter values\n(thresholds in valid range);
+      
+      :Persist to agent_configs table:\nconfig_json = {\"rules\": {...},\n              \"thresholds\": {...}};
+      
+      :Emit RULES_UPDATED event;
+      
+      :Show success notification:\n"Rules updated";
+      
+      :Note: existing analyses\nretain old rules;
+    }
+  else if (Selected tab = AI Settings?) then (yes)
+    partition "AI Configuration (Sprint 3-4)" {
+      :Display AI settings form:\n• Enable/Disable AI Explanations\n• Select model (Flash vs Pro)\n• Daily rate limit (input field)\n• Cost tracker graph\n• Cache statistics;
+      
+      :Admin modifies settings:\n• Check \"Enable AI Explanations\"\n• Select \"Gemini 1.5 Pro\"\n• Set daily limit to 100 requests\n• Review cost graph (current: $45/month);
+      
+      :Click \"Save AI Settings\";
+      
+      :Validate settings:\n• Rate limit > 0 and < 1000\n• Model selection valid\n• Budget alert threshold set;
+      
+      :Persist to database:\nINSERT INTO ai_config\n(ai_enabled, model, rate_limit_daily,\n budget_threshold, updated_at, updated_by)\nVALUES (...);
+      
+      :Update environment variables\nin backend containers:\nGEMINI_MODEL=gemini-1.5-pro\nAI_RATE_LIMIT=100;
+      
+      :Emit AI_CONFIG_CHANGED event;
+      
+      :Backend validates new config\non next analysis;
+      
+      :Show success notification:\n\"AI settings updated\nNewly submitted analyses will use\nnew configuration\";
+    }
+  else if (Selected tab = Team Metrics?) then (yes)
+    partition "Team Metrics Viewing" {
+      :Display analytics dashboard:\n• Average quality score (last 30 days)\n• Most common vulnerabilities\n• Analysis count per developer\n• Trends chart\n• Export metrics (CSV/JSON);
+      
+      :Query from database:\nSELECT avg(quality_score),\n       issue_type, count(*)\nFROM code_reviews cr\nJOIN agent_findings af\nON cr.id = af.review_id\nWHERE cr.created_at >= now() - '30 days'\nGROUP BY issue_type;
+      
+      :Render charts:\n• Line chart: quality score trend\n• Bar chart: vulnerabilities by type\n• Pie chart: agents breakdown;
+      
+      :Display top issues:\n1. eval_usage (23 occurrences)\n2. sql_injection (18 occurrences)\n3. hardcoded_credentials (12);
+      
+      :Admin can export metrics\nfor compliance reports;
+    }
+  endif
+repeat while (More configurations to make?) is (yes)
+
+:Click "Save All Changes";
+
+:Final validation of all configs;
+
+:Persist all changes atomically;
+
+:Broadcast CONFIG_FINALIZED event\nto all backend instances;
+
+:Flush related caches;
+
+:Redirect to Dashboard;
+
+stop
+
+note right
+  **Admin Workflow Diagram**
+  
+  **Role-Based Access:**
+  • Verify user.role = 'admin'
+  • Block access if developer
+  
+  **Configuration Types:**
+  1. Agent toggles (enable/disable)
+  2. Detection rules (thresholds)
+  3. AI settings (model, rate limits)
+  4. Team metrics (view-only)
+  
+  **Persistence Strategy:**
+  • Atomic transactions (all-or-nothing)
+  • Audit log every change
+  • User tracking (updated_by)
+  • Timestamp all modifications
+  
+  **Cache Invalidation:**
+  • Flush config cache after save
+  • Force reload on next request
+  • Prevent stale configs
+  
+  **Event Broadcasting:**
+  • Notify backend instances
+  • Update running analyses aware
+  • New analyses use new config
+  
+  **Safety Measures:**
+  • Validate all inputs
+  • Prevent disabling all agents
+  • Budget alerts
+  • Rollback on atomic failure
+end note
+
+@enduml

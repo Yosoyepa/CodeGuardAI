@@ -1,0 +1,107 @@
+@startuml uml-act-mcp-context-enrichment
+skinparam backgroundColor #FFFFFF
+skinparam activityBackgroundColor #E7F5FF
+skinparam activityBorderColor #1E40AF
+skinparam activityFontSize 10
+skinparam activityDiamondBackgroundColor #FEF3C7
+
+title Activity Diagram - MCP Context Enrichment (Model Context Protocol)
+
+start
+
+:MCPContextEnricher.enrich_context(finding);
+
+:Extract finding details:\n• CWE ID\n• issue_type\n• severity\n• code_snippet;
+
+partition "MCP Server Queries (Parallel)" {
+  fork
+    partition "OWASP MCP Server" {
+      :Initialize ClientSession\nfor OWASP server;
+      
+      :Build query:\n• cwe_id: finding.cwe_id\n• attack_vector: code_snippet;
+      
+      :Send MCP request:\ncall_tool('lookup_cwe',\nparams={cwe_id});
+      
+      :Receive response:\n{\n  cwe_name: str,\n  description: str,\n  severity_rating: str,\n  mitigation_strategies: List[str],\n  owasp_category: str,\n  example_attacks: List[str]\n};
+      
+      :Format OWASP context\ninto markdown string;
+    }
+  fork again
+    partition "CVE MCP Server" {
+      :Initialize ClientSession\nfor CVE server;
+      
+      :Build query:\n• cwe_id: finding.cwe_id\n• search_limit: 5;
+      
+      :Send MCP request:\ncall_tool('search_cve',\nparams={cwe_id, limit: 5});
+      
+      :Receive response:\n{\n  cves: [\n    {cve_id, score, description,\n     affected_versions, exploit_details}\n  ]\n};
+      
+      :Extract top 3 CVE examples;
+      
+      :Format CVE context\nwith real-world exploits;
+    }
+  fork again
+    partition "Custom MCP Server (CodeGuard KB)" {
+      :Initialize ClientSession\nfor custom KB;
+      
+      :Build query:\n• issue_type: finding.issue_type\n• repo_conventions: team_config;
+      
+      :Send MCP request:\ncall_tool('lookup_fix_pattern',\nparams={issue_type});
+      
+      :Receive response:\n{\n  preferred_solution: str,\n  approved_libraries: List[str],\n  team_convention: str,\n  example_fix: str,\n  learning_resources: List[url]\n};
+      
+      :Format custom KB context\nwith team preferences;
+    }
+  end fork
+}
+
+:Combine all MCP responses\ninto single_enriched_context string:\ncontexts = [owasp_context,\n            cve_context,\n            custom_context];
+
+:Build comprehensive prompt\nwith enriched context:\n\"\"\"You are a security expert.\n\nVulnerability: {issue_type}\n\nCode:\n{code_snippet}\n\nContext from OWASP:\n{owasp_context}\n\nReal-world examples:\n{cve_context}\n\nTeam convention:\n{custom_context}\n\nProvide pedagogical explanation.\"\"\";
+
+if (Prompt size < 8192 tokens?) then (yes)
+  :Prompt is within Gemini limit;
+else (no - Too large)
+  :Truncate least important context\n(prioritize OWASP > CVE > Custom);
+endif
+
+:Log MCP query performance metrics:\n• Total latency\n• Per-server latency\n• Cache hit rate;
+
+:Return enriched_context\nto AIExplainerService;
+
+stop
+
+note right
+  **MCP Server Architecture:**
+  • OWASP MCP: npm package, Port 3001
+  • CVE MCP: npm package, Port 3002
+  • Custom MCP: Python, Port 3003
+  
+  **Communication Protocol:**
+  • Model Context Protocol (stdio)
+  • JSON-RPC 2.0
+  • Async/concurrent queries
+  
+  **Performance:**
+  • Per-server latency: <500ms
+  • Total enrichment time: <1.5s
+  • Parallel execution key to speed
+  
+  **Error Handling:**
+  • If OWASP fails: continue with CVE
+  • If CVE fails: continue with Custom
+  • Graceful degradation
+  • Never block on MCP
+  
+  **Caching Strategy:**
+  • Cache MCP responses by CWE ID
+  • TTL: 7 days
+  • Reduces redundant queries
+  
+  **Context Quality Metrics:**
+  • OWASP completeness: 100%
+  • CVE relevance: ranked by score
+  • Custom relevance: team-validated
+end note
+
+@enduml

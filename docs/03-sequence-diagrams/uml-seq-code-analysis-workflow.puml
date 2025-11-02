@@ -11,9 +11,6 @@ participant "Backend\n(FastAPI)" as BE
 participant "AnalysisService" as AS
 participant "OrchestratorAgent" as Orch
 participant "SecurityAgent" as SecAgent
-participant "QualityAgent" as QA
-participant "PerformanceAgent" as PA
-participant "StyleAgent" as SA
 participant "AIExplainerService" as AIExp
 participant "MCPContextEnricher" as MCP
 participant "Gemini API" as Gemini
@@ -53,33 +50,20 @@ else File valid
         ThreadPoolExecutor(max_workers=4)
     end note
     
-    par SecurityAgent
+    par
         Orch -> SecAgent: analyze(context)
         activate SecAgent
         SecAgent -> SecAgent: Parse AST
         SecAgent -> SecAgent: Detect vulnerabilities\n(eval, SQL injection, etc.)
         SecAgent --> Orch: Return findings list
         deactivate SecAgent
-    and QualityAgent
-        Orch -> QA: analyze(context)
-        activate QA
-
-        QA --> Orch: Return findings list
-        deactivate QA
-    and PerformanceAgent
-        Orch -> PA: analyze(context)
-        activate PA
-
-        PA --> Orch: Return findings list
-        deactivate PA
-    and StyleAgent
-        Orch -> SA: analyze(context)
-        activate SA
-
-        SA --> Orch: Return findings list
-        deactivate SA
+    else
+        Orch -> Orch: QualityAgent.analyze()
+    else
+        Orch -> Orch: PerformanceAgent.analyze()
+    else
+        Orch -> Orch: StyleAgent.analyze()
     end
-
     
     Orch -> Orch: Aggregate all findings
     Orch -> Orch: Calculate quality_score\n(0-100 formula)

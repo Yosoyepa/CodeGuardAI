@@ -1,0 +1,121 @@
+@startuml uml-act-ai-explanation-subprocess
+skinparam backgroundColor #FFFFFF
+skinparam activityBackgroundColor #E7F5FF
+skinparam activityBorderColor #1E40AF
+skinparam activityFontSize 10
+skinparam activityDiamondBackgroundColor #FEF3C7
+
+title Activity Diagram - AI Explanation Generation Subprocess (Sprint 3)
+
+start
+
+:Critical finding detected;
+
+:Extract vulnerability details\n(issue_type, CWE ID, code snippet);
+
+partition "MCP Context Enrichment" {
+  fork
+    :Query OWASP MCP Server;
+    :Fetch CWE definitions;
+    :Get OWASP Top 10 mappings;
+    :Retrieve mitigation strategies;
+  fork again
+    :Query CVE MCP Server;
+    :Search NIST NVD database;
+    :Get real-world exploit examples;
+    :Fetch CVSS scores;
+  fork again
+    :Query Custom MCP Server\n(CodeGuard KB);
+    :Lookup team conventions;
+    :Get custom fix patterns;
+    :Retrieve approved libraries;
+  end fork
+}
+
+:Combine all MCP context strings\ninto single enriched_context;
+
+:Build Gemini prompt template\nwith:\n• Vulnerability details\n• MCP-enriched context\n• Instruction for explanation;
+
+:Check RedisCache\n(key = SHA256(issue_type + code_snippet));
+
+if (Cache hit found?) then (yes)
+  :Retrieve cached AIExplanation\nfrom Redis;
+  :Return AIExplanation immediately;
+  end
+else (no - Cache miss)
+  :Prepare API request\nto Gemini/Vertex AI;
+  
+  if (Environment = DEVELOPMENT) then (yes)
+    :Use Gemini 1.5 Flash API\n(Free tier, low latency);
+  else (PRODUCTION)
+    :Use Vertex AI Gemini 1.5 Pro\n(Higher quality, 200 credits budget);
+  endif
+  
+  :Set request parameters:\n• Temperature: 0.3 (deterministic)\n• Max tokens: 1024\n• Timeout: 10 seconds;
+  
+  while (Need to retry?) is (yes)
+    :Call AI API (generate_content);
+    
+    if (API request successful?) then (yes)
+      :Receive JSON response\n{explanation, attack_example, fix_code, references};
+      :Parse JSON response\nto AIExplanation object;
+      :Validate explanation fields\n(non-empty, proper structure);
+      
+      if (Validation passed?) then (yes)
+        :Format code blocks\n(syntax highlighting markers);
+        :Extract CWE/OWASP references\nfrom MCP response;
+        :Create AIExplanation object:\n• explanation: str\n• attack_example: str\n• fix_code: str\n• cwe_reference: str\n• owasp_category: str\n• model_used: str\n• generated_at: timestamp;
+        :Cache in Redis:\n• key: SHA256 hash\n• value: JSON(AIExplanation)\n• TTL: 86400 seconds (24 hours);
+        break
+      else (no)
+        :Log validation error;
+        :Use fallback template;
+        break
+      endif
+    else (no)
+      :Increment retry counter;
+      
+      if (Retry count < 3?) then (yes)
+        :Calculate exponential backoff:\ndelay = 2^retry_count seconds;
+        :Sleep (delay);
+      else (no)
+        :Log final API failure;
+        :Use static template fallback;
+        :Record event: gemini_fallback;
+        break
+      endif
+    endif
+  endwhile
+endif
+
+:Return AIExplanation\n(either generated or cached);
+
+stop
+
+note right
+  **Cache Strategy:**
+  • Key: SHA256(issue_type + code_snippet + line_number)
+  • TTL: 24 hours
+  • Hit rate target: >70%
+  • Saves API calls and costs
+  
+  **Cost Optimization:**
+  • Gemini Flash (Dev): ~$0.00015 per request
+  • Vertex AI Pro (Prod): ~$0.003 per request
+  • Cache hit saves cost entirely
+  • Budget: $200 for 3-6 months
+  
+  **Fallback Strategy:**
+  • On API error: use static template
+  • Static template: generic but always available
+  • User sees explanation (degraded quality)
+  • No impact on availability
+  
+  **MCP Enrichment Benefits:**
+  • Real-time OWASP context
+  • CVE database integration
+  • Team-specific conventions
+  • Improved answer relevance
+end note
+
+@enduml

@@ -1,0 +1,76 @@
+@startuml uml-comp-ai-mcp-integration
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+LAYOUT_WITH_LEGEND()
+
+title Component Diagram - AI/MCP Integration Layer (Sprint 3-4)
+
+Container_Boundary(aiLayer, "AI & MCP Integration Layer") {
+    Component(secAgentEnhanced, "SecurityAgentEnhanced", "Python Class", "Extends SecurityAgent\nInvokes AIExplainerService for critical findings")
+    
+    Component(aiExplainer, "AIExplainerService", "Python Service", "Orchestrates AI explanation generation\nManages Gemini/Vertex AI API calls\nImplements fallback strategy")
+    
+    Component(mcpEnricher, "MCPContextEnricher", "Python Service", "Queries MCP servers\nCombines context from OWASP, CVE, Custom KB\nFormats context for Gemini prompts")
+    
+    Component(redisCache, "RedisCache", "Python + redis-py", "Caches AI explanations (SHA256 keys)\nTTL 24 hours\nChecks cache before API calls")
+}
+
+System_Ext(geminiFlash, "Gemini 1.5 Flash API", "Google AI Studio (Development)")
+System_Ext(vertexAI, "Vertex AI Gemini Pro", "Google Cloud (Production)")
+System_Ext(owaspMCP, "OWASP MCP Server", "npm package, Port 3001")
+System_Ext(cveMCP, "CVE MCP Server", "npm package, Port 3002")
+System_Ext(customMCP, "CodeGuard KB MCP", "Python, Port 3003")
+System_Ext(redis, "Redis Cache", "Upstash")
+System_Ext(orchestrator, "OrchestratorAgent", "Core domain logic")
+
+Rel(secAgentEnhanced, aiExplainer, "Invokes for critical findings", "generate_explanation(finding)")
+Rel(secAgentEnhanced, orchestrator, "Extends")
+
+Rel(aiExplainer, mcpEnricher, "Enriches context", "enrich_context(finding)")
+Rel(aiExplainer, redisCache, "Checks/stores cache", "get/set(key, explanation)")
+
+Rel_D(aiExplainer, geminiFlash, "Dev: generates explanations", "HTTPS, genai SDK")
+Rel_D(aiExplainer, vertexAI, "Prod: generates explanations", "HTTPS, Vertex AI SDK")
+
+Rel(mcpEnricher, owaspMCP, "Queries OWASP data", "MCP Protocol (stdio)")
+Rel(mcpEnricher, cveMCP, "Queries CVE examples", "MCP Protocol (stdio)")
+Rel(mcpEnricher, customMCP, "Queries team conventions", "MCP Protocol (stdio)")
+
+Rel(redisCache, redis, "Stores/retrieves cache", "Redis Protocol")
+
+Rel(orchestrator, aiExplainer, "Delegates AI tasks")
+
+note right of aiExplainer
+  **Configuration:**
+  • Dev: Gemini Flash (15 req/min)
+  • Prod: Vertex AI Pro ($200 budget)
+  • Rate limit: 100 req/day
+  • Timeout: 10 seconds
+  • Retry: 3 attempts (exponential backoff)
+end note
+
+note right of mcpEnricher
+  **MCP Servers:**
+  • OWASP: CWE definitions, OWASP Top 10
+  • CVE: NIST NVD database, exploit examples
+  • Custom: Team conventions, fix patterns
+  
+  **Parallel Queries:**
+  • All 3 servers queried in parallel
+  • Total enrichment latency: <1.5 seconds
+  • Graceful degradation if server fails
+end note
+
+note right of redisCache
+  **Cache Strategy:**
+  • Key: SHA256(issue_type + code_snippet)
+  • TTL: 86400 seconds (24 hours)
+  • Hit rate target: >70%
+  • Saves API costs and latency
+  
+  **Cost Impact:**
+  • Hit: $0 (no API call)
+  • Miss: $0.00015 (Flash) or $0.003 (Pro)
+end note
+
+@enduml

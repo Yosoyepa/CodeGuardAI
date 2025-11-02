@@ -1,0 +1,125 @@
+@startuml uml-act-analysis-workflow-complete
+skinparam backgroundColor #FFFFFF
+skinparam activityBackgroundColor #E7F5FF
+skinparam activityBorderColor #1E40AF
+skinparam activityFontSize 11
+skinparam activityDiamondBackgroundColor #FEF3C7
+
+title Activity Diagram - Complete Code Analysis Workflow
+
+start
+
+:Developer navigates to Upload page;
+
+:Select .py file from local filesystem;
+
+:Click "Analyze Code" button;
+
+if (File valid?\n(.py, ≤10 MB, UTF-8)) then (yes)
+  :Create CodeReview entity in database\n(status='PENDING');
+  
+  :Initialize AnalysisContext\n(analysis_id, code_content, user_id);
+  
+  :OrchestratorAgent.analyze()\ninvoked;
+  
+  partition "Parallel Agent Execution" {
+    fork
+      :SecurityAgent.analyze();
+      :• Parse AST tree;
+      :• Detect vulnerabilities;
+      :• Return security findings;
+    fork again
+      :QualityAgent.analyze();
+      :• Calculate complexity (Radon);
+      :• Detect code duplication;
+      :• Return quality findings;
+    fork again
+      :PerformanceAgent.analyze();
+      :• Detect nested loops;
+      :• Identify inefficient patterns;
+      :• Return performance findings;
+    fork again
+      :StyleAgent.analyze();
+      :• Check PEP 8 (pylint);
+      :• Validate docstrings;
+      :• Return style findings;
+    end fork
+  }
+  
+  :Aggregate findings from all agents;
+  
+  :Calculate quality_score\n(0-100 formula);
+  
+  if (Critical findings exist\nAND AI enabled?) then (yes)
+    partition "AI Explanation Generation" {
+      repeat
+        :Extract CWE ID from issue_type;
+        
+        fork
+          :Query OWASP MCP server\n(mitigation strategies);
+        fork again
+          :Query CVE MCP server\n(exploit examples);
+        fork again
+          :Query Custom MCP server\n(team conventions);
+        end fork
+        
+        :Combine MCP context strings;
+        
+        :Build Gemini prompt with\nMCP-enriched context;
+        
+        :Check RedisCache\n(SHA256 key);
+        
+        if (Cache hit?) then (yes)
+          :Return cached AIExplanation;
+        else (no)
+          :Call Gemini API\n(generate_content);
+          
+          if (API success?) then (yes)
+            :Parse JSON response\nto AIExplanation object;
+            
+            :Cache in Redis\n(TTL 24 hours);
+          else (no - Rate limit or timeout)
+            repeat
+              :Wait exponential backoff\n(2^retry seconds);
+              
+              :Retry API call;
+            repeat while (Retry < 3?) is (yes)
+            ->no;
+            
+            :Use static template fallback;
+            
+            :Log gemini_fallback event;
+          endif
+        endif
+        
+        :Attach AIExplanation\nto finding object;
+      repeat while (More critical findings?) is (yes)
+      ->no;
+    }
+  endif
+  
+  :Persist CodeReview to database\n(status='COMPLETED');
+  
+  :Persist all findings to\nagent_findings table;
+  
+  :Emit ANALYSIS_COMPLETED event\nvia WebSocket;
+  
+  :Return AnalysisDTO to frontend\n{analysis_id, quality_score, findings};
+  
+  stop
+  
+else (no)
+  :Return HTTP 422\n(Unprocessable Entity);
+  
+  note right
+    **Validation Errors:**
+    • File too large (>10 MB)
+    • Invalid extension (not .py)
+    • Empty file (0 bytes)
+    • Invalid UTF-8 encoding
+  end note
+  
+  stop
+endif
+
+@enduml

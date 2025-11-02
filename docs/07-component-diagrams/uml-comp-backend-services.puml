@@ -1,0 +1,62 @@
+@startuml uml-comp-backend-services
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+LAYOUT_WITH_LEGEND()
+
+title Component Diagram - Backend Services Layer
+
+Container_Boundary(appLayer, "Application Layer - Services") {
+    Component(restControllers, "REST API Controllers", "FastAPI Router", "Handles HTTP requests\nRoute validation\nResponse formatting")
+    
+    Component(wsHandler, "WebSocket Handler", "FastAPI WebSocket", "Manages WebSocket connections\nSubscribes to EventBus\nStreams progress to clients")
+    
+    Component(analysisService, "AnalysisService", "Python Service", "Orchestrates analysis workflow\nFile validation\nResults persistence")
+    
+    Component(authService, "AuthenticationService", "Python Service", "JWT validation (Clerk)\nRole-based access control\nRate limit checking")
+    
+    Component(aiExplainerService, "AIExplainerService", "Python Service", "Generates AI explanations\nManages Gemini API calls\nImplements cache + fallback")
+    
+    Component(exportService, "ExportService", "Python Service", "Generates JSON reports\nGenerates PDF reports\nHandles S3 uploads")
+}
+
+System_Ext(clerk, "Clerk OAuth", "Auth provider")
+System_Ext(gemini, "Gemini API", "AI provider")
+System_Ext(orchestrator, "OrchestratorAgent", "Domain logic")
+System_Ext(repos, "Repositories", "Data access")
+
+Rel(restControllers, analysisService, "POST /analyze")
+Rel(restControllers, authService, "GET /user, POST /logout")
+Rel(restControllers, exportService, "GET /export/{id}")
+
+Rel(wsHandler, analysisService, "Subscribes to events")
+
+Rel(analysisService, orchestrator, "orchestrate_analysis()")
+Rel(analysisService, repos, "persist_review(), persist_findings()")
+Rel(analysisService, authService, "check_permissions()")
+
+Rel(authService, clerk, "validate_jwt()")
+
+Rel(aiExplainerService, gemini, "generate_content()")
+
+Rel(exportService, repos, "fetch_review(), fetch_findings()")
+
+note right of analysisService
+  **Responsibilities:**
+  • Validate uploaded files
+  • Create CodeReview entity
+  • Invoke OrchestratorAgent
+  • Persist findings to DB
+  • Emit WebSocket events
+  • Update analysis status
+end note
+
+note right of authService
+  **Security:**
+  • Validate JWT tokens (24h TTL)
+  • Enforce role-based access
+  • Track rate limit quota
+  • Block exceeding users
+  • Log authentication events
+end note
+
+@enduml

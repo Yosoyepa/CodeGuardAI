@@ -1,0 +1,77 @@
+@startuml uml-comp-frontend-modules
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+LAYOUT_WITH_LEGEND()
+
+title Component Diagram - React Frontend Module Structure
+
+Container_Boundary(frontend, "React Frontend Application") {
+    Component(appRouter, "App Router", "react-router-dom", "Client-side routing\nProtected routes\nRole-based rendering")
+    
+    Component(uploadPage, "Upload Page", "React Component", "File input, drag-drop\nAnalysis options\nSubmit button")
+    
+    Component(progressPage, "Progress Page", "React Component", "Real-time WebSocket updates\nAgent status cards\nProgress bar")
+    
+    Component(resultsPage, "Results Dashboard", "React Component", "Quality score circle\nFindings table\nCode viewer\nSeverity distribution")
+    
+    Component(findingModal, "Finding Detail Modal", "React Component", "Expandable AI explanations\nAttack examples\nFix code viewer\nCWE/OWASP badges")
+    
+    Component(trendsPage, "Trends Dashboard", "React Component", "Quality score line chart\nTop vulnerabilities\nExport metrics")
+    
+    Component(adminPage, "Admin Dashboard", "React Component", "Agent configuration\nAI settings\nTeam analytics")
+    
+    Boundary(stateManagement, "State Management (Zustand)") {
+        Component(authStore, "Auth Store", "Zustand", "user, token, role")
+        Component(analysisStore, "Analysis Store", "Zustand", "currentAnalysis, findings, score")
+        Component(wsStore, "WebSocket Store", "Zustand", "isConnected, events, progress")
+    }
+    
+    Boundary(services, "API Services") {
+        Component(apiClient, "API Client", "Axios", "HTTP requests\nJWT interceptor\nError handling\nRetry logic")
+        
+        Component(wsClient, "WebSocket Client", "Native WS", "Connection management\nEvent parsing\nReconnection logic")
+        
+        Component(authClient, "Auth Client", "Clerk SDK", "OAuth flow\nSession management")
+    }
+    
+    Component(uiLibrary, "UI Library", "shadcn/ui + Tailwind", "Button, Card, Modal, Table\nRecharts for graphs\nTailwind styling")
+}
+
+Rel(appRouter, uploadPage, "Route: /upload")
+Rel(appRouter, progressPage, "Route: /progress/{id}")
+Rel(appRouter, resultsPage, "Route: /results/{id}")
+Rel(appRouter, trendsPage, "Route: /trends")
+Rel(appRouter, adminPage, "Route: /admin")
+
+Rel(uploadPage, analysisStore, "Dispatch: setAnalysisId")
+Rel(progressPage, wsStore, "Read: events, progress")
+Rel(resultsPage, analysisStore, "Read: findings, score")
+Rel(findingModal, analysisStore, "Read: selectedFinding")
+Rel(trendsPage, apiClient, "GET /reviews?page=1")
+Rel(adminPage, apiClient, "PUT /admin/config")
+
+Rel(uploadPage, apiClient, "POST /analyze")
+Rel(progressPage, wsClient, "Subscribe to ws://")
+Rel(resultsPage, apiClient, "GET /reviews/{id}")
+
+Rel(authStore, authClient, "clerk.signIn()")
+Rel(analysisStore, apiClient, "Fetch findings")
+Rel(wsStore, wsClient, "Manage connection")
+
+Rel(uploadPage, uiLibrary, "Uses components")
+Rel(resultsPage, uiLibrary, "Uses Recharts")
+Rel(trendsPage, uiLibrary, "Uses charts")
+
+note right of stateManagement
+  **Zustand Stores:**
+  • auth: user session, permissions
+  • analysis: current analysis data
+  • websocket: connection state
+  
+  **Benefits:**
+  • Minimal boilerplate
+  • Devtools integration
+  • Persistence plugins
+end note
+
+@enduml
