@@ -31,15 +31,15 @@ jobs:
           python -m pip install --upgrade pip
           pip install black>=23.0.0 flake8>=7.0.0 isort>=5.13.0
       
-      - name: Format code with Black
+      - name: Check code formatting with Black
         run: |
           cd backend
-          black src/ --line-length=100
+          black src/ --line-length=100 --check
       
-      - name: Sort imports with isort
+      - name: Check import sorting with isort
         run: |
           cd backend
-          isort src/ --profile=black --line-length=100
+          isort src/ --profile=black --line-length=100 --check-only
       
       - name: Lint with Flake8
         run: |
