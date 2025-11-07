@@ -533,7 +533,7 @@ En `README.md` (raíz del proyecto):
 [![Docker](https://github.com/YOUR_ORG/CodeGuard-Unal/actions/workflows/docker.yml/badge.svg?branch=main)](https://github.com/YOUR_ORG/CodeGuard-Unal/actions/workflows/docker.yml)
 ```
 
-### Generar Automaticamente
+### Generar Automáticamente
 
 ```bash
 # En GitHub:
