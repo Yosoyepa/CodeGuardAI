@@ -1,0 +1,41 @@
+"""
+CodeGuard AI - Backend Entry Point
+FastAPI Application
+"""
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+# Create FastAPI app
+app = FastAPI(
+    title="CodeGuard AI",
+    description="Multi-Agent Code Review System",
+    version="1.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc",
+)
+
+# CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    return {"status": "healthy", "version": "1.0.0", "service": "CodeGuard AI Backend"}
+
+
+@app.get("/")
+async def root():
+    """Root endpoint"""
+    return {
+        "message": "CodeGuard AI - Multi-Agent Code Review System",
+        "docs": "/docs",
+        "health": "/health",
+    }

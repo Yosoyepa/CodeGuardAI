@@ -1,0 +1,65 @@
+name: Tests & Coverage
+
+on:
+  push:
+    branches: [main, develop, "feature/**"]
+    paths:
+      - "backend/**/*.py"
+      - "backend/tests/**"
+      - ".github/workflows/test.yml"
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - "backend/**/*.py"
+      - "backend/tests/**"
+
+jobs:
+  test:
+    name: Run Tests & Coverage
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      
+      - name: Install dependencies
+        run: |
+          cd backend
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest>=8.0.0 pytest-asyncio>=0.23.0 pytest-cov>=4.1.0
+      
+      - name: Run tests with coverage
+        run: |
+          cd backend
+          pytest tests/ --cov=src --cov-report=html --cov-report=term-missing --cov-report=xml --cov-fail-under=75 -v
+        continue-on-error: false
+      
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: backend/htmlcov/
+          retention-days: 30
+      
+      - name: Upload coverage to Codecov (optional)
+        if: always()
+        uses: codecov/codecov-action@v4
+        with:
+          file: backend/coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+      
+      - name: Summary
+        if: success()
+        run: |
+          echo "All tests passed with >75% coverage!"
+          echo "Coverage report uploaded as artifact"

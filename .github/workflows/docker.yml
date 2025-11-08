@@ -1,0 +1,49 @@
+name: Docker Build
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - "backend/Dockerfile"
+      - "backend/docker-compose.yml"
+      - "backend/requirements.txt"
+      - ".github/workflows/docker.yml"
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Install docker-compose
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y docker-compose
+      
+      - name: Build backend image
+        run: |
+          cd backend
+          docker build --tag codeguard-backend:${{ github.sha }} .
+      
+      - name: Test Docker image
+        run: |
+          docker run --rm codeguard-backend:${{ github.sha }} python --version
+      
+      - name: Test Docker Compose (validation only)
+        run: |
+          cd backend
+          docker-compose config
+      
+      - name: Summary
+        if: success()
+        run: |
+          echo " Docker image built successfully!"
+          echo " Image: codeguard-backend:${{ github.sha }}"
