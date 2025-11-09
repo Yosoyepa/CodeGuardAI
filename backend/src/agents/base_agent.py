@@ -5,7 +5,10 @@ Clase base abstracta para todos los agentes de análisis
 import logging
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import List, Optional
+from typing import TYPE_CHECKING, List, Optional
+
+if TYPE_CHECKING:
+    from src.core.events.event_bus import EventBus
 
 from src.schemas.analysis import AnalysisContext
 from src.schemas.finding import Finding
@@ -23,6 +26,7 @@ class BaseAgent(ABC):
         version: Versión del agente
         category: Categoría (security, quality, performance, style)
         enabled: Estado de habilitación del agente
+        event_bus: Sistema de eventos para comunicación (opcional)
 
     Example:
         class SecurityAgent(BaseAgent):
@@ -38,7 +42,6 @@ class BaseAgent(ABC):
                 pass
     """
 
-    # pylint: disable=too-many-arguments,too-many-positional-arguments
     def __init__(
         self,
         name: str,
