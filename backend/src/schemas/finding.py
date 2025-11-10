@@ -121,7 +121,7 @@ class Finding(BaseModel):
             "code_snippet": self.code_snippet,
             "suggestion": self.suggestion,
             "rule_id": self.rule_id,
-            "detected_at": self.detected_at.isoformat(),  # pylint: disable=no-member
+            "detected_at": self.detected_at.isoformat(),
         }
 
     def calculate_penalty(self) -> int:

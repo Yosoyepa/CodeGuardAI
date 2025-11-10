@@ -1,19 +1,28 @@
 #!/bin/bash
-# Script para arreglar problemas de calidad de código
+set -e
+set -o pipefail
 
 echo "🔧 Fixing code quality issues..."
 
-# 1. Format with black
 echo "📝 Running black..."
-black src/agents/ src/schemas/ tests/ --line-length=100
+if ! black src/agents/ src/schemas/ tests/ --line-length=100; then
+    echo "❌ Black formatting failed"
+    exit 1
+fi
 
-# 2. Sort imports
 echo "📦 Running isort..."
-isort src/agents/ src/schemas/ tests/ --profile=black
+if ! isort src/agents/ src/schemas/ tests/ --profile=black; then
+    echo "❌ isort failed"
+    exit 1
+fi
 
-# 3. Run linting to check
 echo "🔍 Running pylint..."
-pylint src/agents/ src/schemas/ --fail-under=8.5
+if ! pylint src/agents/ src/schemas/ --fail-under=8.5; then
+    echo "❌ Pylint score below 8.5"
+    exit 1
+fi
 
-echo "✅ Done! Now run tests:"
+echo "✅ All quality checks passed!"
+echo ""
+echo "Now run tests:"
 echo "pytest tests/unit/ -v --cov=src --cov-report=term-missing"

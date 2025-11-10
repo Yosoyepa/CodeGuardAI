@@ -2,12 +2,12 @@
 Esquemas de análisis usando Pydantic v2
 """
 
-import ast as python_ast  # NUEVO
+import ast as python_ast
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, PrivateAttr, field_validator
 
 
 class AnalysisContext(BaseModel):
@@ -43,9 +43,9 @@ class AnalysisContext(BaseModel):
         default_factory=datetime.utcnow, description="Timestamp UTC de creación"
     )
 
-    # NUEVO: Cache para AST
-    _ast_cache: Optional[python_ast.Module] = None
-    _lines_cache: Optional[List[str]] = None
+    # Se Usa PrivateAttr en Pydantic v2 por sugerencia
+    _ast_cache: Optional[python_ast.Module] = PrivateAttr(default=None)
+    _lines_cache: Optional[List[str]] = PrivateAttr(default=None)
 
     class Config:
         """Pydantic configuration for AnalysisContext."""
@@ -112,7 +112,7 @@ class AnalysisContext(BaseModel):
             try:
                 self._ast_cache = python_ast.parse(self.code_content, filename=self.filename)
             except SyntaxError as e:
-                raise SyntaxError(f"Invalid Python syntax in {self.filename}: {e}")
+                raise SyntaxError(f"Invalid Python syntax in {self.filename}: {e}") from e
         return self._ast_cache
 
     def get_lines(self) -> List[str]:
