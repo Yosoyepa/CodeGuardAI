@@ -332,20 +332,59 @@ class SecurityAgent(BaseAgent):
     ) -> List[Finding]:
         """Analiza el AST para detectar queries construidas antes de ejecutar."""
         findings: List[Finding] = []
+        suspicious_vars = self._collect_suspicious_query_assignments(context)
+        if not suspicious_vars:
+            return findings
 
+        execute_calls = self._find_execute_calls(context)
+        for line_num, argument in execute_calls:
+            if line_num not in found_sql_lines and self._is_suspicious_execute_arg(
+                argument, suspicious_vars
+            ):
+                findings.append(
+                    Finding(
+                        severity=Severity.HIGH,
+                        issue_type="sql_injection",
+                        message=self.SQL_INJECTION_MESSAGE,
+                        line_number=line_num,
+                        code_snippet=self._get_code_snippet(context, line_num),
+                        suggestion=self.SQL_INJECTION_SUGGESTION,
+                        agent_name=self.name,
+                        rule_id="SEC002_SQL_INJECTION",
+                    )
+                )
+                found_sql_lines.add(line_num)
+
+        return findings
+
+    @staticmethod
+    def _collect_suspicious_query_assignments(
+        context: AnalysisContext,
+    ) -> Dict[str, str]:
+        """Construye un mapa de variables que contienen posibles queries inseguras."""
+        suspicious_vars: Dict[str, str] = {}
         try:
             tree = ast.parse(context.code_content)
         except SyntaxError:
-            return findings
+            return suspicious_vars
 
-        suspicious_vars: Dict[str, str] = {}
         for node in ast.walk(tree):
             if isinstance(node, ast.Assign) and node.targets:
                 target = node.targets[0]
                 if isinstance(target, ast.Name):
-                    suspicious_type = self._classify_sql_assignment(node.value)
-                    if suspicious_type:
-                        suspicious_vars[target.id] = suspicious_type
+                    assignment_type = SecurityAgent._classify_sql_assignment(node.value)
+                    if assignment_type:
+                        suspicious_vars[target.id] = assignment_type
+        return suspicious_vars
+
+    @staticmethod
+    def _find_execute_calls(context: AnalysisContext) -> List[tuple[int, ast.AST]]:
+        """Obtiene las llamadas a execute() con su línea y primer argumento."""
+        execute_calls: List[tuple[int, ast.AST]] = []
+        try:
+            tree = ast.parse(context.code_content)
+        except SyntaxError:
+            return execute_calls
 
         for node in ast.walk(tree):
             if (
@@ -355,25 +394,8 @@ class SecurityAgent(BaseAgent):
                 and node.args
             ):
                 line_num = getattr(node, "lineno", 1)
-                if line_num in found_sql_lines:
-                    continue
-
-                if self._is_suspicious_execute_arg(node.args[0], suspicious_vars):
-                    findings.append(
-                        Finding(
-                            severity=Severity.HIGH,
-                            issue_type="sql_injection",
-                            message=self.SQL_INJECTION_MESSAGE,
-                            line_number=line_num,
-                            code_snippet=self._get_code_snippet(context, line_num),
-                            suggestion=self.SQL_INJECTION_SUGGESTION,
-                            agent_name=self.name,
-                            rule_id="SEC002_SQL_INJECTION",
-                        )
-                    )
-                    found_sql_lines.add(line_num)
-
-        return findings
+                execute_calls.append((line_num, node.args[0]))
+        return execute_calls
 
     @staticmethod
     def _classify_sql_assignment(value: ast.AST) -> Optional[str]:
