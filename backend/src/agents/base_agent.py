@@ -7,11 +7,11 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import TYPE_CHECKING, List, Optional
 
-if TYPE_CHECKING:
-    from src.core.events.event_bus import EventBus
-
 from src.schemas.analysis import AnalysisContext
 from src.schemas.finding import Finding
+
+if TYPE_CHECKING:
+    from src.core.events.event_bus import EventBus
 
 
 class BaseAgent(ABC):
@@ -73,7 +73,7 @@ class BaseAgent(ABC):
         self.event_bus = event_bus
         self.logger = logging.getLogger(f"agents.{name}")
 
-        self.logger.info(f"[{self.name}] Agent initialized - version {self.version}")
+        self.logger.info("[%s] Agent initialized - version %s", self.name, self.version)
 
     @abstractmethod
     def analyze(self, context: AnalysisContext) -> List[Finding]:
@@ -167,7 +167,6 @@ class BaseAgent(ABC):
         }
 
     def log_info(self, message: str) -> None:
-        """Log a nivel INFO."""
         self.logger.info("[%s] %s", self.name, message)
 
     def log_warning(self, message: str) -> None:

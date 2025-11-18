@@ -191,6 +191,21 @@ class TestBaseAgentEvents:
         assert call_args["type"] == "AGENT_COMPLETED"
         assert call_args["findings_count"] == 1
 
+    def test_emit_agent_failed(self):
+        """Test que _emit_agent_failed publica evento."""
+        event_bus_mock = Mock()
+        agent = DummyAgent()
+        agent.event_bus = event_bus_mock
+        context = AnalysisContext(code_content="code", filename="test.py")
+
+        error = RuntimeError("boom")
+        agent._emit_agent_failed(context, error)
+
+        event_bus_mock.publish.assert_called_once()
+        payload = event_bus_mock.publish.call_args[0][0]
+        assert payload["type"] == "AGENT_FAILED"
+        assert "boom" in payload["error"]
+
     def test_no_events_when_event_bus_none(self):
         """Test que no falla si event_bus es None."""
         agent = DummyAgent()
@@ -201,3 +216,22 @@ class TestBaseAgentEvents:
         # No debe lanzar excepción
         agent._emit_agent_started(context)
         agent._emit_agent_completed(context, [])
+
+
+class TestBaseAgentLogging:
+    """Tests para el logging del agente."""
+
+    def test_log_helpers_delegate_to_logger(self):
+        """Test que los helpers de log delegan en el logger."""
+        agent = DummyAgent()
+        agent.logger = Mock()
+
+        agent.log_info("info")
+        agent.log_warning("warn")
+        agent.log_error("err")
+        agent.log_debug("dbg")
+
+        agent.logger.info.assert_called_once_with("[%s] %s", "DummyAgent", "info")
+        agent.logger.warning.assert_called_once_with("[%s] %s", "DummyAgent", "warn")
+        agent.logger.error.assert_called_once_with("[%s] %s", "DummyAgent", "err")
+        agent.logger.debug.assert_called_once_with("[%s] %s", "DummyAgent", "dbg")

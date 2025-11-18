@@ -6,7 +6,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class Severity(str, Enum):
@@ -14,7 +14,7 @@ class Severity(str, Enum):
     Niveles de severidad de un hallazgo.
 
     CRITICAL: Riesgo inmediato, debe corregirse
-    HIGH: Importante, debe corregirse pronto
+    HIGH: Importante, debe corregerse pronto
     MEDIUM: Moderado, se recomienda corrección
     LOW: Menor, mejora opcional
     INFO: Información, no es un problema
@@ -67,6 +67,21 @@ class Finding(BaseModel):
         default_factory=datetime.utcnow, description="Timestamp de detección"
     )
 
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "severity": "critical",
+                "issue_type": "dangerous_function",
+                "message": "Use of eval() detected",
+                "line_number": 10,
+                "agent_name": "SecurityAgent",
+                "code_snippet": "result = eval(user_input)",
+                "suggestion": "Use ast.literal_eval() instead",
+                "rule_id": "SEC001_EVAL",
+            }
+        }
+    )
+
     @property
     def is_critical(self) -> bool:
         """Retorna True si el hallazgo es crítico."""
@@ -93,6 +108,10 @@ class Finding(BaseModel):
         Returns:
             Instancia de Finding
         """
+        detected_at_str = data.get("detected_at")
+        detected_at = (
+            datetime.fromisoformat(detected_at_str) if detected_at_str else datetime.utcnow()
+        )
         return cls(
             severity=Severity(data["severity"]),
             issue_type=data["issue_type"],
@@ -102,7 +121,7 @@ class Finding(BaseModel):
             code_snippet=data.get("code_snippet"),
             suggestion=data.get("suggestion"),
             rule_id=data.get("rule_id"),
-            detected_at=datetime.fromisoformat(data["detected_at"]),
+            detected_at=detected_at,
         )
 
     def to_dict(self) -> dict:
@@ -112,8 +131,9 @@ class Finding(BaseModel):
         Returns:
             Diccionario con todos los campos del finding
         """
+        detected_at_value = getattr(self, "detected_at")
         return {
-            "severity": self.severity.value,  # pylint: disable=no-member
+            "severity": self.severity.value,
             "issue_type": self.issue_type,
             "message": self.message,
             "line_number": self.line_number,
@@ -121,7 +141,7 @@ class Finding(BaseModel):
             "code_snippet": self.code_snippet,
             "suggestion": self.suggestion,
             "rule_id": self.rule_id,
-            "detected_at": self.detected_at.isoformat(),
+            "detected_at": detected_at_value.isoformat(),
         }
 
     def calculate_penalty(self) -> int:
@@ -139,19 +159,3 @@ class Finding(BaseModel):
             Severity.INFO: 0,
         }
         return penalty_map[self.severity]
-
-    class Config:
-        """Pydantic model configuration."""
-
-        json_schema_extra = {
-            "example": {
-                "severity": "critical",
-                "issue_type": "dangerous_function",
-                "message": "Use of eval() detected",
-                "line_number": 10,
-                "agent_name": "SecurityAgent",
-                "code_snippet": "result = eval(user_input)",
-                "suggestion": "Use ast.literal_eval() instead",
-                "rule_id": "SEC001_EVAL",
-            }
-        }
