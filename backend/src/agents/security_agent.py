@@ -10,7 +10,7 @@ Este agente analiza código Python en busca de problemas de seguridad comunes in
 
 import ast
 import re
-from typing import Dict, List, Set
+from typing import Dict, List, Optional, Set
 
 from src.agents.base_agent import BaseAgent
 from src.schemas.analysis import AnalysisContext
@@ -234,7 +234,10 @@ class SecurityAgent(BaseAgent):
                         finding = Finding(
                             severity=Severity.CRITICAL,
                             issue_type="dangerous_function",
-                            message=f"Uso de {func_name}() detectado - permite ejecución arbitraria de código",
+                            message=(
+                                f"Uso de {func_name}() detectado - "
+                                "permite ejecución arbitraria de código"
+                            ),
                             line_number=node.lineno,
                             code_snippet=self._get_code_snippet(context, node.lineno),
                             suggestion=self._get_dangerous_function_suggestion(func_name),
@@ -248,22 +251,27 @@ class SecurityAgent(BaseAgent):
                         finding = Finding(
                             severity=Severity.HIGH,
                             issue_type="unsafe_deserialization",
-                            message=f"Uso de {func_name} detectado - puede ejecutar código arbitrario durante deserialización",
+                            message=(
+                                f"Uso de {func_name} detectado - "
+                                "puede ejecutar código arbitrario durante "
+                                "deserialización"
+                            ),
                             line_number=node.lineno,
                             code_snippet=self._get_code_snippet(context, node.lineno),
-                            suggestion="Use json.loads() for data deserialization or validate pickle sources",
+                            suggestion=(
+                                "Use json.loads() for data deserialization or "
+                                "validate pickle sources"
+                            ),
                             agent_name=self.name,
                             rule_id="SEC001_PICKLE",
                         )
                         findings.append(finding)
 
         except SyntaxError:
-            # Ya registrado en el método principal analyze
             pass
 
         return findings
 
-    # pylint: disable=too-many-locals,too-many-branches,too-many-statements
     def _detect_sql_injection(self, context: AnalysisContext) -> List[Finding]:
         """
         Detecta vulnerabilidades de inyección SQL usando patrones regex mejorados.
@@ -282,106 +290,124 @@ class SecurityAgent(BaseAgent):
             Lista de hallazgos para vulnerabilidades de inyección SQL
         """
         findings: List[Finding] = []
-        lines = context.code_content.splitlines()
         found_sql_lines: Set[int] = set()
 
-        # 1) Detección directa línea a línea (regex sobre execute(...))
+        findings.extend(self._detect_sql_injection_patterns(context, found_sql_lines))
+        findings.extend(self._detect_sql_injection_ast(context, found_sql_lines))
+        return findings
+
+    def _detect_sql_injection_patterns(
+        self, context: AnalysisContext, found_sql_lines: Set[int]
+    ) -> List[Finding]:
+        """Analiza línea por línea usando regex para detectar SQL injection directa."""
+        findings: List[Finding] = []
+        lines = context.code_content.splitlines()
+
         for line_num, line in enumerate(lines, start=1):
             stripped = line.strip()
-            if not stripped or stripped.startswith("#"):
-                continue
-
-            if line_num in found_sql_lines:
+            if not stripped or stripped.startswith("#") or line_num in found_sql_lines:
                 continue
 
             for pattern in self.SQL_INJECTION_PATTERNS:
                 if re.search(pattern, line, re.IGNORECASE | re.MULTILINE):
-                    finding = Finding(
-                        severity=Severity.HIGH,
-                        issue_type="sql_injection",
-                        message=self.SQL_INJECTION_MESSAGE,
-                        line_number=line_num,
-                        code_snippet=stripped,
-                        suggestion=self.SQL_INJECTION_SUGGESTION,
-                        agent_name=self.name,
-                        rule_id="SEC002_SQL_INJECTION",
+                    findings.append(
+                        Finding(
+                            severity=Severity.HIGH,
+                            issue_type="sql_injection",
+                            message=self.SQL_INJECTION_MESSAGE,
+                            line_number=line_num,
+                            code_snippet=stripped,
+                            suggestion=self.SQL_INJECTION_SUGGESTION,
+                            agent_name=self.name,
+                            rule_id="SEC002_SQL_INJECTION",
+                        )
                     )
-                    findings.append(finding)
                     found_sql_lines.add(line_num)
-                    break  # Solo un hallazgo por línea
+                    break
 
-        # 2) Detección indirecta vía AST (query en variable + execute(query))
+        return findings
+
+    def _detect_sql_injection_ast(
+        self, context: AnalysisContext, found_sql_lines: Set[int]
+    ) -> List[Finding]:
+        """Analiza el AST para detectar queries construidas antes de ejecutar."""
+        findings: List[Finding] = []
+
         try:
             tree = ast.parse(context.code_content)
         except SyntaxError:
-            tree = None
+            return findings
 
-        if tree is not None:
-            # mapear variables construidas sospechosamente
-            var_kind: Dict[str, str] = {}
-            for node in ast.walk(tree):
-                if isinstance(node, ast.Assign) and node.targets:
-                    target = node.targets[0]
-                    if isinstance(target, ast.Name):
-                        name = target.id
-                        value = node.value
-                        if isinstance(value, ast.JoinedStr):
-                            var_kind[name] = "fstring"
-                        elif isinstance(value, ast.BinOp) and isinstance(value.op, ast.Add):
-                            var_kind[name] = "concat"
-                        elif isinstance(value, ast.BinOp) and isinstance(value.op, ast.Mod):
-                            var_kind[name] = "mod"
-                        elif (
-                            isinstance(value, ast.Call)
-                            and isinstance(value.func, ast.Attribute)
-                            and value.func.attr == "format"
-                        ):
-                            var_kind[name] = "format"
+        suspicious_vars: Dict[str, str] = {}
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Assign) and node.targets:
+                target = node.targets[0]
+                if isinstance(target, ast.Name):
+                    suspicious_type = self._classify_sql_assignment(node.value)
+                    if suspicious_type:
+                        suspicious_vars[target.id] = suspicious_type
 
-            for node in ast.walk(tree):
-                if not isinstance(node, ast.Call):
-                    continue
-                if not (isinstance(node.func, ast.Attribute) and node.func.attr == "execute"):
-                    continue
-                if not node.args:
-                    continue
-
-                arg = node.args[0]
-                suspicious = False
-
-                # execute(f"...{var}...")
-                if isinstance(arg, ast.JoinedStr):
-                    suspicious = True
-                # execute("..." + var) o "..." % var
-                elif isinstance(arg, ast.BinOp) and isinstance(arg.op, (ast.Add, ast.Mod)):
-                    suspicious = True
-                # execute("...".format(var))
-                elif (
-                    isinstance(arg, ast.Call)
-                    and isinstance(arg.func, ast.Attribute)
-                    and arg.func.attr == "format"
-                ):
-                    suspicious = True
-                # execute(query) donde query se marcó como sospechosa
-                elif isinstance(arg, ast.Name) and arg.id in var_kind:
-                    suspicious = True
-
+        for node in ast.walk(tree):
+            if (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "execute"
+                and node.args
+            ):
                 line_num = getattr(node, "lineno", 1)
-                if suspicious and line_num not in found_sql_lines:
-                    finding = Finding(
-                        severity=Severity.HIGH,
-                        issue_type="sql_injection",
-                        message=self.SQL_INJECTION_MESSAGE,
-                        line_number=line_num,
-                        code_snippet=self._get_code_snippet(context, line_num),
-                        suggestion=self.SQL_INJECTION_SUGGESTION,
-                        agent_name=self.name,
-                        rule_id="SEC002_SQL_INJECTION",
+                if line_num in found_sql_lines:
+                    continue
+
+                if self._is_suspicious_execute_arg(node.args[0], suspicious_vars):
+                    findings.append(
+                        Finding(
+                            severity=Severity.HIGH,
+                            issue_type="sql_injection",
+                            message=self.SQL_INJECTION_MESSAGE,
+                            line_number=line_num,
+                            code_snippet=self._get_code_snippet(context, line_num),
+                            suggestion=self.SQL_INJECTION_SUGGESTION,
+                            agent_name=self.name,
+                            rule_id="SEC002_SQL_INJECTION",
+                        )
                     )
-                    findings.append(finding)
                     found_sql_lines.add(line_num)
 
         return findings
+
+    @staticmethod
+    def _classify_sql_assignment(value: ast.AST) -> Optional[str]:
+        """Clasifica asignaciones sospechosas de queries."""
+        if isinstance(value, ast.JoinedStr):
+            return "fstring"
+        if isinstance(value, ast.BinOp) and isinstance(value.op, ast.Add):
+            return "concat"
+        if isinstance(value, ast.BinOp) and isinstance(value.op, ast.Mod):
+            return "mod"
+        if (
+            isinstance(value, ast.Call)
+            and isinstance(value.func, ast.Attribute)
+            and value.func.attr == "format"
+        ):
+            return "format"
+        return None
+
+    @staticmethod
+    def _is_suspicious_execute_arg(arg: ast.AST, suspicious_vars: Dict[str, str]) -> bool:
+        """Determina si el argumento pasado a execute es potencialmente inseguro."""
+        if isinstance(arg, ast.JoinedStr):
+            return True
+        if isinstance(arg, ast.BinOp) and isinstance(arg.op, (ast.Add, ast.Mod)):
+            return True
+        if (
+            isinstance(arg, ast.Call)
+            and isinstance(arg.func, ast.Attribute)
+            and arg.func.attr == "format"
+        ):
+            return True
+        if isinstance(arg, ast.Name) and arg.id in suspicious_vars:
+            return True
+        return False
 
     def _detect_hardcoded_credentials(self, context: AnalysisContext) -> List[Finding]:
         """
@@ -417,27 +443,25 @@ class SecurityAgent(BaseAgent):
 
                 match = re.search(pattern, line, re.IGNORECASE)
                 if match:
-                    # Extraer el valor de la credencial
                     value = match.group(0).split("=")[1].strip().strip("\"'")
-
-                    # Saltar si es un placeholder
-                    if self._is_placeholder(value):
+                    if self._is_placeholder(value) or len(value) < 8:
                         continue
 
-                    # Saltar si la entropía es muy baja (probablemente no es un secreto real)
-                    if len(value) < 8:
-                        continue
-
+                    env_var = cred_name.upper()
                     finding = Finding(
                         severity=severity,
                         issue_type="hardcoded_credentials",
-                        message=f"Hardcoded {cred_name} detected - secrets should not be in source code",
+                        message=(
+                            f"Hardcoded {cred_name} detected - secrets "
+                            "should not be in source code"
+                        ),
                         line_number=line_num,
                         code_snippet=line.strip(),
-                        # Debe contener 'environment variable' para los tests
-                        suggestion=f"Use environment variables: {cred_name.upper()} = os.getenv('{cred_name.upper()}')",
+                        suggestion=(
+                            f"Use environment variables: {env_var} = " f"os.getenv('{env_var}')"
+                        ),
                         agent_name=self.name,
-                        rule_id=f"SEC003_{cred_name.upper()}",
+                        rule_id=f"SEC003_{env_var}",
                     )
                     findings.append(finding)
                     break  # Solo un hallazgo por línea
@@ -495,7 +519,9 @@ class SecurityAgent(BaseAgent):
                         finding = Finding(
                             severity=Severity.HIGH,
                             issue_type="weak_cryptography",
-                            message=f"Uso de algoritmo de encriptación débil detectado: {func_name}",
+                            message=(
+                                "Uso de algoritmo de encriptación débil " f"detectado: {func_name}"
+                            ),
                             line_number=node.lineno,
                             code_snippet=self._get_code_snippet(context, node.lineno),
                             suggestion="Usa AES-256 con Crypto.Cipher.AES",

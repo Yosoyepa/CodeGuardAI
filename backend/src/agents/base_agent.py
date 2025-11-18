@@ -50,6 +50,7 @@ class BaseAgent(ABC):
         enabled: bool = True,
         event_bus: Optional["EventBus"] = None,
     ) -> None:
+        # pylint: disable=too-many-arguments,too-many-positional-arguments
         """
         Inicializa el agente base.
 
@@ -167,6 +168,7 @@ class BaseAgent(ABC):
         }
 
     def log_info(self, message: str) -> None:
+        """Log a message at INFO level."""
         self.logger.info("[%s] %s", self.name, message)
 
     def log_warning(self, message: str) -> None:

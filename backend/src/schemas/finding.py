@@ -2,9 +2,11 @@
 Esquemas para hallazgos encontrados en análisis
 """
 
+from __future__ import annotations
+
 from datetime import datetime
 from enum import Enum
-from typing import Optional
+from typing import Any, ClassVar, Dict, Optional, cast
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -82,6 +84,14 @@ class Finding(BaseModel):
         }
     )
 
+    PENALTY_BY_SEVERITY: ClassVar[Dict[Severity, int]] = {
+        Severity.CRITICAL: 10,
+        Severity.HIGH: 5,
+        Severity.MEDIUM: 2,
+        Severity.LOW: 1,
+        Severity.INFO: 0,
+    }
+
     @property
     def is_critical(self) -> bool:
         """Retorna True si el hallazgo es crítico."""
@@ -124,16 +134,18 @@ class Finding(BaseModel):
             detected_at=detected_at,
         )
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> Dict[str, Any]:
         """
         Convierte el Finding a diccionario para persistencia.
 
         Returns:
             Diccionario con todos los campos del finding
         """
-        detected_at_value = getattr(self, "detected_at")
+        severity_value = cast(Severity, self.severity).value
+        detected_at_value = cast(datetime, self.detected_at)
+
         return {
-            "severity": self.severity.value,
+            "severity": severity_value,
             "issue_type": self.issue_type,
             "message": self.message,
             "line_number": self.line_number,
@@ -151,11 +163,4 @@ class Finding(BaseModel):
         Returns:
             Penalty points (CRITICAL=10, HIGH=5, MEDIUM=2, LOW=1, INFO=0)
         """
-        penalty_map = {
-            Severity.CRITICAL: 10,
-            Severity.HIGH: 5,
-            Severity.MEDIUM: 2,
-            Severity.LOW: 1,
-            Severity.INFO: 0,
-        }
-        return penalty_map[self.severity]
+        return self.PENALTY_BY_SEVERITY.get(self.severity, 0)
