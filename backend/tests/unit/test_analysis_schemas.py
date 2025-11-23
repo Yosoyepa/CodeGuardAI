@@ -238,3 +238,48 @@ class TestFinding:
             agent_name="TestAgent",
         )
         assert info.is_actionable is False
+
+
+class TestAnalysisContextHelpers:
+    def test_code_is_dedented_and_ast_cached(self):
+        context = AnalysisContext(
+            code_content="    def foo():\n        return 1",
+            filename="foo.py",
+        )
+        assert context.code_content.startswith("def foo")
+        first_ast = context.get_ast()
+        assert context.get_ast() is first_ast
+
+    def test_get_ast_invalid_code_raises(self):
+        context = AnalysisContext(code_content="def broken(", filename="bad.py")
+        with pytest.raises(SyntaxError):
+            context.get_ast()
+
+    def test_get_lines_and_snippets(self):
+        context = AnalysisContext(code_content="a\nb\nc", filename="file.py")
+        assert context.get_line(2) == "b"
+        assert context.get_line(99) is None
+        assert context.get_code_snippet(1, 2) == "a\nb"
+
+    def test_finding_from_and_to_dict_without_detected_at(self):
+        data = {
+            "severity": "critical",
+            "issue_type": "dangerous_function",
+            "message": "Use of eval() detected",
+            "line_number": 5,
+            "agent_name": "SecurityAgent",
+        }
+        finding = Finding.from_dict(data)
+        serialized = finding.to_dict()
+        assert serialized["severity"] == "critical"
+        assert "detected_at" in serialized
+
+    def test_calculate_penalty_map(self):
+        finding = Finding(
+            severity=Severity.HIGH,
+            issue_type="test",
+            message="Test issue",
+            line_number=1,
+            agent_name="TestAgent",
+        )
+        assert finding.calculate_penalty() == 5

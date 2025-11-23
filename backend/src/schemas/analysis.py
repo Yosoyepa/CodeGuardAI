@@ -4,10 +4,11 @@ Esquemas de análisis usando Pydantic v2
 
 import ast as python_ast
 from datetime import datetime
+from textwrap import dedent
 from typing import Any, Dict, List, Optional
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, Field, PrivateAttr, field_validator
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, field_validator, model_validator
 
 
 class AnalysisContext(BaseModel):
@@ -47,18 +48,17 @@ class AnalysisContext(BaseModel):
     _ast_cache: Optional[python_ast.Module] = PrivateAttr(default=None)
     _lines_cache: Optional[List[str]] = PrivateAttr(default=None)
 
-    class Config:
-        """Pydantic configuration for AnalysisContext."""
-
-        arbitrary_types_allowed = True  # Permite almacenar AST
-        json_schema_extra = {
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        json_schema_extra={
             "example": {
                 "code_content": "def hello():\n    print('Hello World')",
                 "filename": "example.py",
                 "language": "python",
                 "metadata": {"user_id": "123", "project": "CodeGuard"},
             }
-        }
+        },
+    )
 
     @field_validator("code_content")
     @classmethod
@@ -77,6 +77,15 @@ class AnalysisContext(BaseModel):
         if not v or len(v) < 3:
             raise ValueError("filename must be at least 3 characters")
         return v
+
+    @model_validator(mode="after")
+    def _normalize_code_content(self) -> "AnalysisContext":
+        """
+        Normaliza el código eliminando la indentación común para evitar
+        SyntaxError cuando se parsean fixtures con sangría artificial.
+        """
+        self.code_content = dedent(self.code_content)
+        return self
 
     @property
     def line_count(self) -> int:
@@ -174,10 +183,8 @@ class AnalysisRequest(BaseModel):
         default=None, description="Qué agentes ejecutar"
     )
 
-    class Config:
-        """Pydantic model configuration."""
-
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "filename": "app.py",
                 "code_content": "import os\n\ndef main():\n    pass",
@@ -189,6 +196,7 @@ class AnalysisRequest(BaseModel):
                 },
             }
         }
+    )
 
 
 class AnalysisResponse(BaseModel):
@@ -207,10 +215,8 @@ class AnalysisResponse(BaseModel):
     status: str = Field(..., description="Estado del análisis")
     created_at: datetime = Field(..., description="Timestamp de creación")
 
-    class Config:
-        """Pydantic model configuration."""
-
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "analysis_id": "550e8400-e29b-41d4-a716-446655440000",
                 "filename": "app.py",
@@ -218,3 +224,4 @@ class AnalysisResponse(BaseModel):
                 "created_at": "2025-11-06T21:00:00Z",
             }
         }
+    )
