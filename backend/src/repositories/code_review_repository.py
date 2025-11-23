@@ -1,14 +1,15 @@
-from uuid import UUID
 from typing import Optional
-from sqlalchemy.orm import Session
+from uuid import UUID
+
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
 
 from src.models.code_review import CodeReviewEntity
 from src.models.enums.review_status import ReviewStatus
 from src.schemas.analysis import CodeReview
-
-from src.utils.encryption.aes_encryptor import encrypt_aes256, decrypt_aes256
+from src.utils.encryption.aes_encryptor import decrypt_aes256, encrypt_aes256
 from src.utils.logger import logger
+
 
 class CodeReviewRepository:
     """
@@ -58,12 +59,12 @@ class CodeReviewRepository:
                 status=review.status,
                 total_findings=review.total_findings,
                 created_at=review.created_at,
-                completed_at=review.completed_at
+                completed_at=review.completed_at,
             )
 
             self.session.add(entity)
             self.session.commit()
-            
+
             logger.info(f"CodeReview persistido exitosamente: {review.id}")
             return review
 
@@ -91,7 +92,7 @@ class CodeReviewRepository:
         """
         try:
             entity = self.session.get(CodeReviewEntity, review_id)
-            
+
             if not entity:
                 return None
 
@@ -106,7 +107,7 @@ class CodeReviewRepository:
                 status=entity.status,
                 total_findings=entity.total_findings,
                 created_at=entity.created_at,
-                completed_at=entity.completed_at
+                completed_at=entity.completed_at,
             )
         except Exception as e:
             logger.error(f"Error recuperando CodeReview {review_id}: {str(e)}")

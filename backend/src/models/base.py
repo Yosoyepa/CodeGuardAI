@@ -7,6 +7,7 @@ todas las entidades de la base de datos para ser reconocidas por el ORM.
 
 from sqlalchemy.orm import DeclarativeBase
 
+
 class Base(DeclarativeBase):
     """
     Clase base declarativa para todos los modelos ORM del sistema.
@@ -17,4 +18,5 @@ class Base(DeclarativeBase):
 
     Todas las entidades (ej. `CodeReviewEntity`) deben heredar de esta clase.
     """
+
     pass
