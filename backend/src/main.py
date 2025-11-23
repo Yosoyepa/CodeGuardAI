@@ -5,6 +5,8 @@ FastAPI Application
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from .core.database import init_db
+from .routers import analysis
 
 # Create FastAPI app
 app = FastAPI(
@@ -39,3 +41,22 @@ async def root():
         "docs": "/docs",
         "health": "/health",
     }
+
+
+@app.on_event("startup")
+def on_startup():
+    # ensure DB tables exist for local development
+    init_db()
+    # include routers
+
+
+# Include routers at import time so endpoints exist when TestClient imports `app`
+app.include_router(analysis.router)
+from .routers import reviews as reviews_router
+app.include_router(reviews_router.router)
+# For local development and tests, ensure DB tables exist on import
+try:
+    init_db()
+except Exception:
+    # don't fail import if DB init cannot run in some environments
+    pass
