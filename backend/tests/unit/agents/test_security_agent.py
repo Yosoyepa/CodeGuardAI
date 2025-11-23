@@ -388,7 +388,7 @@ class TestComplexScenarios:
     def test_findings_sorted_by_severity(self, agent):
         """Test that findings are sorted by severity."""
         code = """
-                # LOW severity issue
+                # MEDIUM severity issue
                 import hashlib
                 hash1 = hashlib.md5(data).hexdigest()
 

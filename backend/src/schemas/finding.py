@@ -4,7 +4,7 @@ Esquemas para hallazgos encontrados en análisis
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, ClassVar, Dict, Optional, cast
 
@@ -16,7 +16,7 @@ class Severity(str, Enum):
     Niveles de severidad de un hallazgo.
 
     CRITICAL: Riesgo inmediato, debe corregirse
-    HIGH: Importante, debe corregerse pronto
+    HIGH: Importante, debe corregirse pronto
     MEDIUM: Moderado, se recomienda corrección
     LOW: Menor, mejora opcional
     INFO: Información, no es un problema
@@ -66,7 +66,7 @@ class Finding(BaseModel):
     suggestion: Optional[str] = Field(default=None, description="Sugerencia de corrección")
     rule_id: Optional[str] = Field(default=None, description="ID de la regla")
     detected_at: datetime = Field(
-        default_factory=datetime.utcnow, description="Timestamp de detección"
+        default_factory=lambda: datetime.now(timezone.utc), description="Timestamp de detección"
     )
 
     model_config = ConfigDict(
@@ -120,7 +120,9 @@ class Finding(BaseModel):
         """
         detected_at_str = data.get("detected_at")
         detected_at = (
-            datetime.fromisoformat(detected_at_str) if detected_at_str else datetime.utcnow()
+            datetime.fromisoformat(detected_at_str)
+            if detected_at_str
+            else datetime.now(timezone.utc)
         )
         return cls(
             severity=Severity(data["severity"]),

@@ -24,7 +24,7 @@ class SecurityAgent(BaseAgent):
     Analiza el código usando múltiples estrategias de detección:
     1. Análisis AST (Abstract Syntax Tree) para funciones peligrosas
     2. Coincidencia de patrones regex para inyección SQL
-    3. Regex + análisis de entropía para credenciales hardcodeadas
+    3. Regex y detección de placeholders para credenciales hardcodeadas
     4. Análisis AST para algoritmos criptográficos débiles
 
     Atributos:
@@ -75,7 +75,7 @@ class SecurityAgent(BaseAgent):
     # Patrones de credenciales (regex)
     CREDENTIAL_PATTERNS: List[dict] = [
         {
-            "pattern": r'password\s*=\s*["\'][^"\']{3,}["\']',
+            "pattern": r'password\s*=\s*["\'][^"\']{8,}["\']',
             "name": "password",
             "severity": Severity.CRITICAL,
         },
@@ -268,6 +268,8 @@ class SecurityAgent(BaseAgent):
                         findings.append(finding)
 
         except SyntaxError:
+            # El código fuente puede estar incompleto o contener errores de sintaxis.
+            # Ignoramos el error porque no se puede analizar AST en código inválido.
             pass
 
         return findings
@@ -433,7 +435,7 @@ class SecurityAgent(BaseAgent):
 
     def _detect_hardcoded_credentials(self, context: AnalysisContext) -> List[Finding]:
         """
-        Detecta credenciales hardcodeadas usando patrones regex y análisis de entropía.
+        Detecta credenciales hardcodeadas usando patrones regex y detección de placeholders.
 
         Busca patrones comunes como:
         - password = "valor"
@@ -553,6 +555,8 @@ class SecurityAgent(BaseAgent):
                         findings.append(finding)
 
         except SyntaxError:
+            # El código fuente puede estar incompleto o contener errores de sintaxis.
+            # Ignoramos el error porque no se puede analizar criptografía en código inválido.
             pass
 
         return findings
