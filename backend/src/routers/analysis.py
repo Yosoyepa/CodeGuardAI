@@ -1,4 +1,5 @@
-""" Router for code analysis operations """
+"""Router for code analysis operations"""
+
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
@@ -14,17 +15,20 @@ router = APIRouter(prefix="/api/v1", tags=["analysis"])
 
 
 def get_db():
-    """ Dependency to get DB session """
+    """Dependency to get DB session"""
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
 
+
 """ Endpoint to analyze uploaded code file """
+
+
 @router.post("/analyze", response_model=AnalyzeResponse)
 async def analyze_file(file: UploadFile = File(...), db: Session = Depends(get_db)):
-    """ Validate and analyze uploaded code file """
+    """Validate and analyze uploaded code file"""
     # Validate extension
     if not file.filename.endswith(".py"):
         raise HTTPException(status_code=400, detail="Only .py files are supported")
@@ -49,7 +53,7 @@ async def analyze_file(file: UploadFile = File(...), db: Session = Depends(get_d
 
     # Persist findings
     for f in findings:
-        # f is a Finding Pydantic model 
+        # f is a Finding Pydantic model
         repo.add_finding(
             review_id=review.id,
             agent_type=f.agent_name if getattr(f, "agent_name", None) else "security",
@@ -70,5 +74,7 @@ async def analyze_file(file: UploadFile = File(...), db: Session = Depends(get_d
         for f in findings
     ]
     # Prepare and return response
-    response = AnalyzeResponse(id=review.id, filename=file.filename, totalFindings=len(out_findings), findings=out_findings)
+    response = AnalyzeResponse(
+        id=review.id, filename=file.filename, totalFindings=len(out_findings), findings=out_findings
+    )
     return JSONResponse(status_code=200, content=response.model_dump(by_alias=True))

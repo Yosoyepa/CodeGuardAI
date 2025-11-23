@@ -1,16 +1,19 @@
-""" Schemas for code analysis operations """
+"""Schemas for code analysis operations"""
+
 from pydantic import BaseModel, Field
 from typing import List, Optional
 
 
 class AnalysisContext(BaseModel):
-    """ Context for code analysis """
+    """Context for code analysis"""
+
     filename: str
     code_content: str
 
 
 class FindingOut(BaseModel):
-    """ Output schema for a finding """
+    """Output schema for a finding"""
+
     agent_type: str
     severity: str
     issue_type: str
@@ -19,7 +22,8 @@ class FindingOut(BaseModel):
 
 
 class AnalyzeResponse(BaseModel):
-    """ Response schema for code analysis """
+    """Response schema for code analysis"""
+
     id: Optional[int] = None
     filename: str
     total_findings: int = Field(..., alias="totalFindings")

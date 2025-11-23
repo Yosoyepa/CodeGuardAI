@@ -1,4 +1,5 @@
-""" Schemas for findings detected during code analysis """
+"""Schemas for findings detected during code analysis"""
+
 from enum import Enum
 from typing import Optional
 from pydantic import BaseModel

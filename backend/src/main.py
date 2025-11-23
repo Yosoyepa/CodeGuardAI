@@ -53,6 +53,7 @@ def on_startup():
 # Include routers at import time so endpoints exist when TestClient imports `app`
 app.include_router(analysis.router)
 from .routers import reviews as reviews_router
+
 app.include_router(reviews_router.router)
 # For local development and tests, ensure DB tables exist on import
 try:

@@ -1,12 +1,18 @@
-""" Base class for all agents """
+"""Base class for all agents"""
 
 import logging
 from typing import Optional
 
 
 class BaseAgent:
-    def __init__(self, name: str, version: str = "0.0.1", category: Optional[str] = None, enabled: bool = True):
-        """ Initialize BaseAgent
+    def __init__(
+        self,
+        name: str,
+        version: str = "0.0.1",
+        category: Optional[str] = None,
+        enabled: bool = True,
+    ):
+        """Initialize BaseAgent
 
         Args:
             name (str): name of the agent
@@ -21,7 +27,7 @@ class BaseAgent:
         self.logger = logging.getLogger(name)
 
     def analyze(self, *args, **kwargs):
-        """ Analyze method to be implemented by subclasses
+        """Analyze method to be implemented by subclasses
 
         Raises:
             NotImplementedError: _description_
@@ -30,7 +36,7 @@ class BaseAgent:
 
     # Lightweight logging helpers used by agents
     def log_info(self, msg: str):
-        """ log info message 
+        """log info message
 
         Args:
             msg (str): _description_
@@ -38,7 +44,7 @@ class BaseAgent:
         self.logger.info(msg)
 
     def log_debug(self, msg: str):
-        """ log debug message
+        """log debug message
 
         Args:
             msg (str): _description_
@@ -46,7 +52,7 @@ class BaseAgent:
         self.logger.debug(msg)
 
     def log_error(self, msg: str):
-        """ log error message
+        """log error message
 
         Args:
             msg (str): _description_
