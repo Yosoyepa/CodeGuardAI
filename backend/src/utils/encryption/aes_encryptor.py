@@ -8,7 +8,8 @@ load_dotenv()
 
 # Obtener clave de encriptación
 # NOTA: En producción, esto DEBE venir de variables de entorno.
-# Si no existe, generamos una temporal para desarrollo (esto evita que falle en local si no configuraste el .env)
+# Si no existe, generamos una temporal para desarrollo.
+# (Esto evita que falle en local si no configuraste el .env)
 _KEY = os.getenv("ENCRYPTION_SECRET_KEY", Fernet.generate_key().decode())
 _CIPHER = Fernet(_KEY.encode() if isinstance(_KEY, str) else _KEY)
 

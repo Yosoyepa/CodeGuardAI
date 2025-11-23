@@ -5,7 +5,6 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from src.models.code_review import CodeReviewEntity
-from src.models.enums.review_status import ReviewStatus
 from src.schemas.analysis import CodeReview
 from src.utils.encryption.aes_encryptor import decrypt_aes256, encrypt_aes256
 from src.utils.logger import logger
