@@ -10,6 +10,8 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, field_validator, model_validator
 
+from src.models.enums.review_status import ReviewStatus
+
 
 class AnalysisContext(BaseModel):
     """
@@ -224,4 +226,50 @@ class AnalysisResponse(BaseModel):
                 "created_at": "2025-11-06T21:00:00Z",
             }
         }
+    )
+
+
+class CodeReview(BaseModel):
+    """
+    Modelo de dominio para una revisión de código completa.
+
+    Este modelo representa la información que fluye entre la capa de persistencia
+    y la capa de servicio. Contiene el código desencriptado listo para ser usado.
+
+    Attributes:
+        id: Identificador único de la revisión.
+        user_id: ID del usuario propietario.
+        filename: Nombre del archivo analizado.
+        code_content: Contenido del código fuente (texto plano).
+        quality_score: Puntaje de calidad calculado (0-100).
+        status: Estado actual del análisis.
+        total_findings: Cantidad total de hallazgos detectados.
+        created_at: Fecha de creación.
+        completed_at: Fecha de finalización (opcional).
+    """
+
+    id: UUID = Field(..., description="ID único de la revisión")
+    user_id: str = Field(..., description="ID del usuario propietario (Clerk ID)")
+    filename: str = Field(..., description="Nombre del archivo analizado")
+    code_content: str = Field(..., description="Contenido del código fuente desencriptado")
+    quality_score: int = Field(..., ge=0, le=100, description="Puntaje de calidad (0-100)")
+    status: ReviewStatus = Field(..., description="Estado actual del análisis")
+    total_findings: int = Field(default=0, ge=0, description="Total de hallazgos encontrados")
+    created_at: datetime = Field(..., description="Fecha de creación del análisis")
+    completed_at: Optional[datetime] = Field(default=None, description="Fecha de finalización")
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
+            "example": {
+                "id": "123e4567-e89b-12d3-a456-426614174000",
+                "user_id": "user_2819",
+                "filename": "main.py",
+                "code_content": "print('Hello World')",
+                "quality_score": 85,
+                "status": "completed",
+                "total_findings": 3,
+                "created_at": "2025-11-22T10:00:00Z",
+            }
+        },
     )
