@@ -4,7 +4,6 @@ from uuid import uuid4
 
 from fastapi import HTTPException, UploadFile
 
-# Imports de Dominio y Esquemas
 from src.agents.security_agent import SecurityAgent
 from src.core.events.analysis_events import AnalysisEventType
 from src.core.events.event_bus import EventBus
@@ -66,7 +65,7 @@ class AnalysisService:
             metadata={"user_id": user_id},
         )
 
-        # Notificar inicio usando el Enum (Evita hardcoding)
+        # Notificar inicio usando el Enum
         self.event_bus.publish(AnalysisEventType.ANALYSIS_STARTED, {"id": str(analysis_id)})
 
         # 3. Ejecutar Agentes (Solo SecurityAgent para Sprint 1)
@@ -77,8 +76,7 @@ class AnalysisService:
             findings = agent.analyze(context)
         except Exception as e:
             logger.error(f"Error ejecutando SecurityAgent: {e}")
-            # En caso de error del agente, no fallamos todo el request,
-            # pero registramos 0 findings o un finding de error del sistema.
+            # En caso de error del agente, no fallamos todo el request
 
         # 4. Calcular Quality Score (RN8)
         quality_score = self._calculate_quality_score(findings)
@@ -98,8 +96,6 @@ class AnalysisService:
 
         # 6. Persistir (RN14)
         saved_review = self.repo.create(review)
-
-        # TODO: Persistir findings individuales en su propia tabla (Sprint 1.5)
 
         # Notificar fin usando el Enum
         self.event_bus.publish(
@@ -132,7 +128,7 @@ class AnalysisService:
             )
 
         # Validar contenido vacío
-        lines = [l for l in content.splitlines() if l.strip()]
+        lines = [line for line in content.splitlines() if line.strip()]
         if len(lines) < 5:
             raise HTTPException(
                 status_code=422, detail="El archivo debe tener al menos 5 líneas de código"

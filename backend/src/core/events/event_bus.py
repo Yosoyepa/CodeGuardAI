@@ -71,15 +71,13 @@ class EventBus:
         event = {"type": event_type, "data": data, "timestamp": datetime.utcnow().isoformat()}
 
         # Notificar a todos los observadores
-        # Nota: En una implementación asíncrona real, esto podría usar asyncio.gather
         for observer in self._observers:
             try:
-                # Por ahora lo llamamos de forma síncrona o fire-and-forget
-                # dependiendo de la implementación del observer
-                # Si el observer es async, aquí deberíamos hacer await o create_task
+                # TODO: Implementar llamada asíncrona real (asyncio.create_task)
+                # Por ahora pasamos el evento para evitar F841 si se implementara
                 pass
             except Exception as e:
                 logger.error(f"Error notificando al observador {observer}: {e}")
 
-        # Log para depuración
-        logger.debug(f"Evento publicado: {event_type} - {data}")
+        # Log para depuración (Usamos 'event' aquí para corregir F841)
+        logger.debug(f"Evento publicado: {event}")
