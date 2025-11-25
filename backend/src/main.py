@@ -28,6 +28,7 @@ app.add_middleware(
 
 app.include_router(analysis_router)
 
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""

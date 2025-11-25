@@ -1,29 +1,27 @@
-from fastapi import APIRouter, HTTPException, UploadFile, File, Depends, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
-from src.core.dependencies.get_db import get_db
 from src.core.dependencies.auth import get_current_user
-from src.schemas.user import User
-from src.schemas.analysis import AnalysisResponse
-from src.services.analysis_service import AnalysisService
+from src.core.dependencies.get_db import get_db
 from src.repositories.code_review_repository import CodeReviewRepository
+from src.schemas.analysis import AnalysisResponse
+from src.schemas.user import User
+from src.services.analysis_service import AnalysisService
 from src.utils.logger import logger
 
-router = APIRouter(
-    prefix="/api/v1",
-    tags=["analysis"]
-)
+router = APIRouter(prefix="/api/v1", tags=["analysis"])
+
 
 @router.post(
     "/analyze",
     response_model=AnalysisResponse,
     status_code=status.HTTP_200_OK,
-    summary="Analizar código fuente Python"
+    summary="Analizar código fuente Python",
 )
 async def analyze_code(
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Sube un archivo Python para análisis automatizado de seguridad y calidad.
@@ -55,8 +53,7 @@ async def analyze_code(
     except Exception as e:
         logger.error(f"Error interno en análisis: {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error interno del servidor"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno del servidor"
         ) from e
 
     return AnalysisResponse(
@@ -65,5 +62,5 @@ async def analyze_code(
         status=result.status,
         quality_score=result.quality_score,
         total_findings=result.total_findings,
-        created_at=result.created_at
+        created_at=result.created_at,
     )

@@ -1,8 +1,11 @@
 """
 Dependencia para obtener sesión de base de datos.
 """
+
 from typing import Generator
-from src.core.database import SessionLocal # Asumiendo que existe, si no, usaremos un mock temporal
+
+from src.core.database import SessionLocal  # Asumiendo que existe, si no, usaremos un mock temporal
+
 
 def get_db() -> Generator:
     """
@@ -16,5 +19,5 @@ def get_db() -> Generator:
         # esto permite que los tests con mocks funcionen.
         yield None
     finally:
-        if 'db' in locals() and db:
+        if "db" in locals() and db:
             db.close()
