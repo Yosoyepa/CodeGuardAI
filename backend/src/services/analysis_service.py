@@ -1,5 +1,9 @@
+"""
+Servicio de análisis de código para CodeGuard AI.
+"""
+
 from datetime import datetime
-from typing import List
+from typing import List, Tuple
 from uuid import uuid4
 
 from fastapi import HTTPException, UploadFile
@@ -28,7 +32,6 @@ class AnalysisService:
             repo: Repositorio para persistencia de revisiones.
         """
         self.repo = repo
-        # EventBus es Singleton
         self.event_bus = EventBus()
 
     async def analyze_code(self, file: UploadFile, user_id: str) -> CodeReview:
@@ -55,12 +58,13 @@ class AnalysisService:
         logger.info(f"Iniciando análisis para usuario {user_id} archivo {file.filename}")
 
         # 1. Validación de Archivo (RN4)
-        content = await self._validate_file(file)
+        content, filename = await self._validate_file(file)
+
         # 2. Preparar Contexto
         analysis_id = uuid4()
         context = AnalysisContext(
             code_content=content,
-            filename=file.filename,
+            filename=filename,
             analysis_id=analysis_id,
             metadata={"user_id": user_id},
         )
@@ -72,11 +76,9 @@ class AnalysisService:
         findings: List[Finding] = []
         try:
             agent = SecurityAgent()
-            # Asumimos que SecurityAgent.analyze devuelve List[Finding]
             findings = agent.analyze(context)
         except Exception as e:
             logger.error(f"Error ejecutando SecurityAgent: {e}")
-            # En caso de error del agente, no fallamos todo el request
 
         # 4. Calcular Quality Score (RN8)
         quality_score = self._calculate_quality_score(findings)
@@ -85,7 +87,7 @@ class AnalysisService:
         review = CodeReview(
             id=analysis_id,
             user_id=user_id,
-            filename=file.filename,
+            filename=filename,
             code_content=content,
             quality_score=quality_score,
             status=ReviewStatus.COMPLETED,
@@ -99,16 +101,35 @@ class AnalysisService:
 
         # Notificar fin usando el Enum
         self.event_bus.publish(
-            AnalysisEventType.ANALYSIS_COMPLETED, {"id": str(analysis_id), "score": quality_score}
+            AnalysisEventType.ANALYSIS_COMPLETED,
+            {"id": str(analysis_id), "score": quality_score},
         )
 
         return saved_review
 
-    async def _validate_file(self, file: UploadFile) -> str:
+    async def _validate_file(self, file: UploadFile) -> Tuple[str, str]:
         """
         Valida las restricciones del archivo (RN4).
+
+        Args:
+            file: Archivo subido por el usuario.
+
+        Returns:
+            Tuple[str, str]: (contenido, nombre_archivo)
+
+        Raises:
+            HTTPException: Si el archivo no cumple las validaciones.
         """
-        if not file.filename.endswith(".py"):
+        # Validar que filename exista
+        if not file.filename:
+            raise HTTPException(
+                status_code=422,
+                detail="El nombre del archivo es requerido",
+            )
+
+        filename = file.filename
+
+        if not filename.endswith(".py"):
             raise HTTPException(status_code=422, detail="Solo se aceptan archivos .py")
 
         # Leer contenido
@@ -117,43 +138,52 @@ class AnalysisService:
         # Validar tamaño (10MB = 10 * 1024 * 1024 bytes)
         if len(content_bytes) > 10 * 1024 * 1024:
             raise HTTPException(
-                status_code=413, detail="El tamaño del archivo excede el límite de 10 MB"
+                status_code=413,
+                detail="El tamaño del archivo excede el límite de 10 MB",
             )
 
         try:
             content = content_bytes.decode("utf-8")
-        except UnicodeDecodeError:
+        except UnicodeDecodeError as exc:
             raise HTTPException(
-                status_code=422, detail="El archivo debe tener codificación UTF-8 válida"
-            )
+                status_code=422,
+                detail="El archivo debe tener codificación UTF-8 válida",
+            ) from exc
 
         # Validar contenido vacío
         lines = [line for line in content.splitlines() if line.strip()]
         if len(lines) < 5:
             raise HTTPException(
-                status_code=422, detail="El archivo debe tener al menos 5 líneas de código"
+                status_code=422,
+                detail="El archivo debe tener al menos 5 líneas de código",
             )
 
         # Resetear puntero del archivo
         await file.seek(0)
 
-        return content
+        return content, filename
 
     def _calculate_quality_score(self, findings: List[Finding]) -> int:
         """
         Calcula el puntaje de calidad basado en penalizaciones (RN8).
 
         Fórmula: score = max(0, 100 - penalizaciones)
+
+        Args:
+            findings: Lista de hallazgos detectados.
+
+        Returns:
+            int: Puntaje de calidad (0-100).
         """
         penalty = 0
-        for f in findings:
-            if f.severity == Severity.CRITICAL:
+        for finding in findings:
+            if finding.severity == Severity.CRITICAL:
                 penalty += 10
-            elif f.severity == Severity.HIGH:
+            elif finding.severity == Severity.HIGH:
                 penalty += 5
-            elif f.severity == Severity.MEDIUM:
+            elif finding.severity == Severity.MEDIUM:
                 penalty += 2
-            elif f.severity == Severity.LOW:
+            elif finding.severity == Severity.LOW:
                 penalty += 1
 
         return max(0, 100 - penalty)

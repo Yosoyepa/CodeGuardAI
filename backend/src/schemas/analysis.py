@@ -215,6 +215,8 @@ class AnalysisResponse(BaseModel):
     analysis_id: UUID = Field(..., description="ID único del análisis")
     filename: str = Field(..., description="Nombre del archivo")
     status: str = Field(..., description="Estado del análisis")
+    quality_score: int = Field(..., ge=0, le=100, description="Puntaje de calidad")
+    total_findings: int = Field(..., ge=0, description="Total de hallazgos")
     created_at: datetime = Field(..., description="Timestamp de creación")
 
     model_config = ConfigDict(
