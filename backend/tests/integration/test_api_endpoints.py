@@ -263,8 +263,10 @@ class TestAnalyzeEndpointResponseFormat:
 class TestAnalyzeEndpointAuthentication:
     """Tests para autenticación."""
 
-    def test_reject_unauthenticated_request(self):
-        """Rechaza requests sin autenticación."""
+    def test_reject_unauthenticated_request(self, monkeypatch):
+        """Rechaza requests sin autenticación en modo producción."""
+        # Forzar modo producción donde auth es obligatorio
+        monkeypatch.setenv("ENVIRONMENT", "production")
         app.dependency_overrides.clear()
 
         client = TestClient(app)

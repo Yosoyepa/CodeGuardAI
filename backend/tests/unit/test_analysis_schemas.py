@@ -120,12 +120,16 @@ class TestAnalysisResponse:
             analysis_id=analysis_id,
             filename="app.py",
             status="pending",
+            quality_score=85,
+            total_findings=3,
             created_at=datetime.utcnow(),
         )
 
         assert response.analysis_id == analysis_id
         assert response.filename == "app.py"
         assert response.status == "pending"
+        assert response.quality_score == 85
+        assert response.total_findings == 3
 
 
 class TestFinding:
