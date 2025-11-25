@@ -30,7 +30,8 @@ async def test_validate_file_success(service):
     mock_file.read.return_value = content
 
     result = await service._validate_file(mock_file)
-    assert result == content.decode("utf-8")
+    # _validate_file returns tuple (content, filename)
+    assert result == (content.decode("utf-8"), "valid.py")
 
 
 @pytest.mark.asyncio
