@@ -1,55 +1,61 @@
-# Web Framework
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-python-multipart==0.0.6
-websockets==12.0
+# ==========================================
+# CodeGuard AI - Backend Dependencies
+# ==========================================
 
-# Database & ORM
-sqlalchemy==2.0.23
-alembic==1.12.1
-psycopg2-binary==2.9.9
+# ===== WEB FRAMEWORK =====
+fastapi>=0.109.0  # Última versión compatible con Pydantic 2.8+
+uvicorn[standard]>=0.27.0
+python-multipart>=0.0.6
 
-# Supabase Client
-supabase==2.0.3
+# ===== DATABASE & ORM =====
+sqlalchemy>=2.0.25
+alembic>=1.13.0
+psycopg2-binary>=2.9.9
 
-# Authentication
-clerk-backend-api==1.0.0
-python-jose[cryptography]==3.3.0
-passlib[bcrypt]==1.7.4
+# ===== AUTHENTICATION =====
+# Clerk (requiere Pydantic 2.8+, httpx 0.27+)
+clerk-backend-api>=1.0.0
+python-jose[cryptography]>=3.3.0
 
-# AI & MCP (Sprint 3)
-google-generativeai==0.3.1
-google-cloud-aiplatform==1.38.0
-mcp==1.0.0
+# ===== SUPABASE (comentado - incompatible con Clerk httpx) =====
+# Usar PostgreSQL directo con SQLAlchemy en su lugar
+# supabase>=2.3.0  
 
-# Static Analysis Tools
-bandit==1.7.5
-radon==6.0.1
-pylint==3.0.2
-flake8==6.1.0
+# ===== STATIC ANALYSIS (Sprint 1 Core) =====
+bandit>=1.7.5
+radon>=6.0.1
+pylint>=3.0.3
+flake8>=7.0.0
 
-# Cache
-redis==5.0.1
-hiredis==2.2.3
+# ===== CACHE =====
+redis>=5.0.1
+hiredis>=2.3.0
 
-# Utilities
-pydantic==2.5.0
-pydantic-settings==2.1.0
-python-dotenv==1.0.0
-structlog==23.2.0
+# ===== UTILITIES =====
+pydantic>=2.8.0  # Compatible con Clerk
+pydantic-settings>=2.2.0
+python-dotenv>=1.0.0
+requests>=2.31.0
+httpx>=0.27.0  # Compatible con Clerk
 
-# PDF Generation
-reportlab==4.0.7
-weasyprint==60.1
+# ===== AI SERVICES (Sprint 3) =====
+google-generativeai>=0.3.2  # Gemini API
+# google-cloud-aiplatform>=1.40.0  # Vertex AI (opcional)
 
-# Testing
-pytest==7.4.3
-pytest-asyncio==0.21.1
-pytest-cov==4.1.0
-httpx==0.25.2
-faker==20.1.0
+# ===== DEVELOPMENT TOOLS =====  (Moved to requirements-dev.txt)
+# black>=24.0.0
+# isort>=5.13.0
+# mypy>=1.8.0
 
-# Development
-black==23.11.0
-isort==5.12.0
-mypy==1.7.1
+# ===== TESTING (Sprint 1 Core) =====  (Moved to requirements-dev.txt)
+# pytest>=8.0.0
+# pytest-asyncio>=0.23.0
+# pytest-cov>=4.1.0
+# faker>=22.0.0  # Para datos de prueba
+
+# ===== PDF GENERATION (Sprint 2) =====
+reportlab>=4.0.9
+
+# ===== WEBSOCKETS (Sprint 2) =====
+websockets>=12.0
+email-validator>=2.0.0
