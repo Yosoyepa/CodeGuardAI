@@ -1,21 +1,57 @@
 """
 Dependencia de autenticación.
+
+Provee OAuth2PasswordBearer para Swagger UI y autenticación opcional en desarrollo.
 """
 
-from fastapi import Header, HTTPException
+import os
 
-from src.schemas.user import User
+from fastapi import Depends, HTTPException
+from fastapi.security import OAuth2PasswordBearer
+
+from src.schemas.user import Role, User
+
+# OAuth2 scheme para Swagger UI - muestra botón "Authorize"
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/token", auto_error=False)
 
 
-async def get_current_user(authorization: str = Header(None)) -> User:
+async def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
     """
-    Simula la validación de un token JWT (Clerk) y retorna el usuario.
+    Obtiene el usuario actual basado en el token.
 
-    Nota: Para el Sprint 1, esto puede ser un stub que valida la presencia del header.
-    En producción, esto decodifica el JWT real.
+    En desarrollo: retorna usuario mock.
+    En producción: valida token JWT (a implementar en Sprint 2).
+
+    Args:
+        token: Token JWT del header Authorization.
+
+    Returns:
+        User: Usuario autenticado.
+
+    Raises:
+        HTTPException: 401 si el token es inválido en producción.
     """
-    if not authorization:
-        raise HTTPException(status_code=401, detail="Authentication required")
+    environment = os.getenv("ENVIRONMENT", "development")
 
-    # Simulación de usuario autenticado
-    return User(id="user_123", email="dev@codeguard.ai", name="Developer", role="developer")
+    if environment == "production":
+        # En producción, validar token real
+        if not token:
+            raise HTTPException(
+                status_code=401,
+                detail="Token de autenticación requerido",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        # TODO: Implementar validación real con Clerk en Sprint 2
+        raise HTTPException(
+            status_code=401,
+            detail="Token inválido",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # En desarrollo, retornar usuario mock
+    return User(
+        id="user_123",
+        email="dev@codeguard.ai",
+        name="Developer User",
+        role=Role.DEVELOPER,
+    )
