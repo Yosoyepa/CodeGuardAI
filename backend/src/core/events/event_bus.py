@@ -1,13 +1,14 @@
 """
-Implementación del bus de eventos del sistema (Patrón Singleton + Observer).
+Event Bus para comunicación desacoplada entre componentes.
 """
 
-from datetime import datetime
+import logging
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
 from src.core.events.observers import EventObserver
-from src.utils.logger import logger
+
+logger = logging.getLogger(__name__)
 
 
 class EventType(str, Enum):
@@ -36,48 +37,48 @@ class EventBus:
         """Implementación del patrón Singleton."""
         if cls._instance is None:
             cls._instance = super().__new__(cls)
-            cls._instance._observers = []
+            cls._observers = []
         return cls._instance
 
     def subscribe(self, observer: EventObserver) -> None:
         """
-        Registra un nuevo observador.
+        Registra un observer para recibir eventos.
 
         Args:
-            observer: Instancia que implementa EventObserver.
+            observer: Observer que implementa EventObserver.
         """
         if observer not in self._observers:
             self._observers.append(observer)
-            logger.info(f"Observador registrado: {observer.__class__.__name__}")
 
     def unsubscribe(self, observer: EventObserver) -> None:
         """
-        Elimina un observador existente.
+        Elimina un observer del bus.
 
         Args:
-            observer: Instancia a remover.
+            observer: Observer a eliminar.
         """
         if observer in self._observers:
             self._observers.remove(observer)
 
     def publish(self, event_type: str, data: Dict[str, Any]) -> None:
         """
-        Publica un evento a todos los suscriptores registrados.
+        Publica un evento a todos los observers suscritos.
 
         Args:
-            event_type: Tipo de evento (preferiblemente de EventType).
-            data: Datos asociados al evento (payload).
+            event_type: Tipo de evento (str o EventType).
+            data: Datos del evento.
         """
-        event = {"type": event_type, "data": data, "timestamp": datetime.utcnow().isoformat()}
+        # Convertir Enum a string si es necesario
+        if isinstance(event_type, Enum):
+            event_type = event_type.value
 
-        # Notificar a todos los observadores
         for observer in self._observers:
             try:
-                # TODO: Implementar llamada asíncrona real (asyncio.create_task)
-                # Por ahora pasamos el evento para evitar F841 si se implementara
-                pass
+                observer.on_event(event_type, data)
             except Exception as e:
-                logger.error(f"Error notificando al observador {observer}: {e}")
+                # Log error pero no interrumpir otros observers
+                logger.error(f"Error in observer {observer}: {e}")
 
-        # Log para depuración (Usamos 'event' aquí para corregir F841)
-        logger.debug(f"Evento publicado: {event}")
+    def clear(self) -> None:
+        """Elimina todos los observers."""
+        self._observers.clear()
