@@ -4,20 +4,26 @@ Dependencia para obtener sesión de base de datos.
 
 from typing import Generator
 
-from src.core.database import SessionLocal  # Asumiendo que existe, si no, usaremos un mock temporal
+from sqlalchemy.orm import Session
+
+from src.core.database import SessionLocal
 
 
-def get_db() -> Generator:
+def get_db() -> Generator[Session, None, None]:
     """
     Crea una sesión de base de datos por request y la cierra al finalizar.
+
+    Yields:
+        Session: Sesión de SQLAlchemy para operaciones de base de datos.
+
+    Example:
+        @router.post("/items")
+        def create_item(db: Session = Depends(get_db)):
+            # usar db aquí
+            pass
     """
+    db = SessionLocal()
     try:
-        db = SessionLocal()
         yield db
-    except Exception:
-        # En caso de que SessionLocal no esté configurado aún en src.core.database
-        # esto permite que los tests con mocks funcionen.
-        yield None
     finally:
-        if "db" in locals() and db:
-            db.close()
+        db.close()
