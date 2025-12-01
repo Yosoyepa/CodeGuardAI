@@ -48,10 +48,7 @@ class StyleAgent(BaseAgent):
         """
         Inicializa StyleAgent con configuracion por defecto.
         """
-        super().__init__(name="StyleAgent",
-                         version="1.0.0",
-                         category="style",
-                         enabled=True)
+        super().__init__(name="StyleAgent", version="1.0.0", category="style", enabled=True)
         # Usa el limite de clase por defecto
         self.line_length_limit = self.LINE_LENGTH_LIMIT
         self.logger.info(f"StyleAgent inicializado con 6 modulos de analisis de estilo.")
@@ -111,8 +108,9 @@ class StyleAgent(BaseAgent):
 
         # Eliminar duplicados y ordenar hallazgos por severidad
         findings = self._remove_duplicates(findings)
-        findings.sort(key=lambda f: (["critical", "high", "medium", "low", "info"].index(f.severity.value)))
-
+        findings.sort(
+            key=lambda f: (["critical", "high", "medium", "low", "info"].index(f.severity.value))
+        )
 
         for finding in findings:
             self.log_info(
@@ -121,9 +119,7 @@ class StyleAgent(BaseAgent):
                 f"issue_type={finding.issue_type} msg={finding.message}"
             )
 
-        self.log_info(
-            f"Analisis de estilo completado: {len(findings)} hallazgos"
-        )
+        self.log_info(f"Analisis de estilo completado: {len(findings)} hallazgos")
 
         return findings
 
@@ -417,9 +413,7 @@ class StyleAgent(BaseAgent):
                                         "UPPER_SNAKE_CASE"
                                     ),
                                     line_number=node.lineno,
-                                    code_snippet=self._get_code_snippet(
-                                        context, node.lineno
-                                    ),
+                                    code_snippet=self._get_code_snippet(context, node.lineno),
                                     suggestion=(
                                         "Renombra la constante para usar UPPER_SNAKE_CASE "
                                         "(por ejemplo: MI_CONSTANTE)"
@@ -439,9 +433,7 @@ class StyleAgent(BaseAgent):
                                         f"El nombre de variable '{name}' debe usar snake_case"
                                     ),
                                     line_number=node.lineno,
-                                    code_snippet=self._get_code_snippet(
-                                        context, node.lineno
-                                    ),
+                                    code_snippet=self._get_code_snippet(context, node.lineno),
                                     suggestion=(
                                         "Renombra la variable para usar snake_case "
                                         "(por ejemplo: mi_variable)"
@@ -530,7 +522,6 @@ class StyleAgent(BaseAgent):
 
         return findings
 
-
     def _map_pylint_severity(self, msg_id: str) -> Severity:
         """
         Mapea el prefijo del mensaje de pylint a un nivel de severidad interno.
@@ -561,7 +552,9 @@ class StyleAgent(BaseAgent):
         findings: List[Finding] = []
 
         try:
-            with tempfile.NamedTemporaryFile(suffix=".py", delete=False, mode="w", encoding="utf-8") as tmp:
+            with tempfile.NamedTemporaryFile(
+                suffix=".py", delete=False, mode="w", encoding="utf-8"
+            ) as tmp:
                 tmp.write(context.code_content)
                 tmp_path = tmp.name
 

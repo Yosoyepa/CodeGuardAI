@@ -77,13 +77,13 @@ class AnalysisService:
         # 3. Ejecutar agentes (SecurityAgent + StyleAgent)
         findings: List[Finding] = []
         try:
-            #security_agent = SecurityAgent()
+            # security_agent = SecurityAgent()
             style_agent = StyleAgent()
 
-            #security_findings = security_agent.analyze(context)
+            # security_findings = security_agent.analyze(context)
             style_findings = style_agent.analyze(context)
 
-            #findings = security_findings + style_findings
+            # findings = security_findings + style_findings
             findings = style_findings
 
         except Exception as e:
@@ -107,7 +107,6 @@ class AnalysisService:
 
         # 6. Persistir (RN14)
         saved_review = self.repo.create(review)
-        
 
         # Notificar fin usando el Enum
         self.event_bus.publish(
