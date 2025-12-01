@@ -267,7 +267,7 @@ class StyleAgent(BaseAgent):
     # ---------------------------------------------------------------------
     # Modulo 3: imports
     # ---------------------------------------------------------------------
-    def _check_imports(self, context: AnalysisContext) -> List[Finding]:    # noqa: C901
+    def _check_imports(self, context: AnalysisContext) -> List[Finding]:  # noqa: C901
         """
         Detecta problemas basicos en imports:
         - Imports no usados
@@ -338,7 +338,7 @@ class StyleAgent(BaseAgent):
     # ---------------------------------------------------------------------
     # Modulo 4: convenciones de nombres
     # ---------------------------------------------------------------------
-    def _check_naming_conventions(self, context: AnalysisContext) -> List[Finding]:    # noqa: C901
+    def _check_naming_conventions(self, context: AnalysisContext) -> List[Finding]:  # noqa: C901
         """
         Detecta violaciones de convenciones de nombres para funciones, clases y variables.
         """
