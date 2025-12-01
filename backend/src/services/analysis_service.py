@@ -3,12 +3,14 @@ Servicio de análisis de código para CodeGuard AI.
 """
 
 from datetime import datetime
+from multiprocessing import context
 from typing import List, Tuple
 from uuid import uuid4
 
 from fastapi import HTTPException, UploadFile
 
 from src.agents.security_agent import SecurityAgent
+from src.agents.style_agent import StyleAgent
 from src.core.events.analysis_events import AnalysisEventType
 from src.core.events.event_bus import EventBus
 from src.models.enums.review_status import ReviewStatus
@@ -72,13 +74,20 @@ class AnalysisService:
         # Notificar inicio usando el Enum
         self.event_bus.publish(AnalysisEventType.ANALYSIS_STARTED, {"id": str(analysis_id)})
 
-        # 3. Ejecutar Agentes (Solo SecurityAgent para Sprint 1)
+        # 3. Ejecutar agentes (SecurityAgent + StyleAgent)
         findings: List[Finding] = []
         try:
-            agent = SecurityAgent()
-            findings = agent.analyze(context)
+            #security_agent = SecurityAgent()
+            style_agent = StyleAgent()
+
+            #security_findings = security_agent.analyze(context)
+            style_findings = style_agent.analyze(context)
+
+            #findings = security_findings + style_findings
+            findings = style_findings
+
         except Exception as e:
-            logger.error(f"Error ejecutando SecurityAgent: {e}")
+            logger.error(f"Error ejecutando agentes de analisis: {e}")
 
         # 4. Calcular Quality Score (RN8)
         quality_score = self._calculate_quality_score(findings)
@@ -98,6 +107,7 @@ class AnalysisService:
 
         # 6. Persistir (RN14)
         saved_review = self.repo.create(review)
+        
 
         # Notificar fin usando el Enum
         self.event_bus.publish(
