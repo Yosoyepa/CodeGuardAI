@@ -51,7 +51,7 @@ class StyleAgent(BaseAgent):
         super().__init__(name="StyleAgent", version="1.0.0", category="style", enabled=True)
         # Usa el limite de clase por defecto
         self.line_length_limit = self.LINE_LENGTH_LIMIT
-        self.logger.info(f"StyleAgent inicializado con 6 modulos de analisis de estilo.")
+        self.logger.info("StyleAgent inicializado con 6 modulos de analisis de estilo.")
 
     def analyze(self, context: AnalysisContext) -> List[Finding]:
         """
@@ -267,7 +267,7 @@ class StyleAgent(BaseAgent):
     # ---------------------------------------------------------------------
     # Modulo 3: imports
     # ---------------------------------------------------------------------
-    def _check_imports(self, context: AnalysisContext) -> List[Finding]:
+    def _check_imports(self, context: AnalysisContext) -> List[Finding]:    # noqa: C901
         """
         Detecta problemas basicos en imports:
         - Imports no usados
@@ -338,7 +338,7 @@ class StyleAgent(BaseAgent):
     # ---------------------------------------------------------------------
     # Modulo 4: convenciones de nombres
     # ---------------------------------------------------------------------
-    def _check_naming_conventions(self, context: AnalysisContext) -> List[Finding]:
+    def _check_naming_conventions(self, context: AnalysisContext) -> List[Finding]:    # noqa: C901
         """
         Detecta violaciones de convenciones de nombres para funciones, clases y variables.
         """
