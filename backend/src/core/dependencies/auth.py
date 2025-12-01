@@ -1,57 +1,99 @@
 """
 Dependencia de autenticación.
 
-Provee OAuth2PasswordBearer para Swagger UI y autenticación opcional en desarrollo.
+Valida tokens JWT de Clerk y protege rutas.
 """
 
-import os
-
 from fastapi import Depends, HTTPException
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from src.external.clerk_client import (
+    ClerkClient,
+    ClerkTokenExpiredError,
+    ClerkTokenInvalidError,
+)
 from src.schemas.user import Role, User
 
-# OAuth2 scheme para Swagger UI - muestra botón "Authorize"
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/token", auto_error=False)
+# HTTPBearer para extraer token del header Authorization
+http_bearer = HTTPBearer(auto_error=False)
 
 
-async def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(http_bearer),
+) -> User:
     """
-    Obtiene el usuario actual basado en el token.
+    Obtiene el usuario actual validando el token JWT de Clerk.
 
-    En desarrollo: retorna usuario mock.
-    En producción: valida token JWT (a implementar en Sprint 2).
+    Flujo:
+    1. Extrae token del header Authorization: Bearer <token>
+    2. Valida el token con ClerkClient
+    3. Retorna User schema con los datos del token
 
     Args:
-        token: Token JWT del header Authorization.
+        credentials: Credenciales HTTP Bearer.
 
     Returns:
         User: Usuario autenticado.
 
     Raises:
-        HTTPException: 401 si el token es inválido en producción.
+        HTTPException 401: Si el token falta, es inválido o expiró.
     """
-    environment = os.getenv("ENVIRONMENT", "development")
+    # AC Escenario 2: Verificar que el token esté presente
+    if not credentials:
+        raise HTTPException(
+            status_code=401,
+            detail="Token de autenticación requerido",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
-    if environment == "production":
-        # En producción, validar token real
-        if not token:
-            raise HTTPException(
-                status_code=401,
-                detail="Token de autenticación requerido",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-        # TODO: Implementar validación real con Clerk en Sprint 2
+    token = credentials.credentials
+    clerk_client = ClerkClient()
+
+    try:
+        # Validar token con Clerk
+        payload = clerk_client.verify_token(token)
+
+        return User(
+            id=payload["user_id"],
+            email=payload.get("email", ""),
+            name=payload.get("name"),
+            role=Role.DEVELOPER,
+        )
+
+    except ClerkTokenExpiredError:
+        # AC Escenario 6: Token expirado
+        raise HTTPException(
+            status_code=401,
+            detail="Token expirado",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    except ClerkTokenInvalidError:
+        # AC Escenario 5: Token inválido
         raise HTTPException(
             status_code=401,
             detail="Token inválido",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # En desarrollo, retornar usuario mock
-    return User(
-        id="user_123",
-        email="dev@codeguard.ai",
-        name="Developer User",
-        role=Role.DEVELOPER,
-    )
+
+async def get_optional_user(
+    credentials: HTTPAuthorizationCredentials = Depends(http_bearer),
+) -> User | None:
+    """
+    Obtiene el usuario actual si hay token, None si no.
+
+    Útil para endpoints que funcionan con o sin autenticación.
+
+    Args:
+        credentials: Credenciales HTTP Bearer (opcional).
+
+    Returns:
+        User si hay token válido, None si no hay token.
+
+    Raises:
+        HTTPException 401: Si hay token pero es inválido o expiró.
+    """
+    if not credentials:
+        return None
+
+    return await get_current_user(credentials)
