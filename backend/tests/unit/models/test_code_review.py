@@ -58,15 +58,15 @@ class TestCodeReviewEntityCalculateQualityScore:
             filename="file_with_issues.py",
             code_content=b"content",
         )
-        
+
         # Mock de findings con penalidades
         finding1 = MagicMock()
         finding1.penalty = 10  # CRITICAL
         finding2 = MagicMock()
-        finding2.penalty = 5   # HIGH
+        finding2.penalty = 5  # HIGH
         finding3 = MagicMock()
-        finding3.penalty = 2   # MEDIUM
-        
+        finding3.penalty = 2  # MEDIUM
+
         review.findings = [finding1, finding2, finding3]
 
         score = review.calculate_quality_score()
@@ -82,14 +82,14 @@ class TestCodeReviewEntityCalculateQualityScore:
             filename="terrible_file.py",
             code_content=b"content",
         )
-        
+
         # Mock de muchos findings críticos
         findings = []
         for _ in range(15):
             f = MagicMock()
             f.penalty = 10  # 15 x 10 = 150
             findings.append(f)
-        
+
         review.findings = findings
 
         score = review.calculate_quality_score()

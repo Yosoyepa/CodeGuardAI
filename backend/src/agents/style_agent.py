@@ -64,7 +64,16 @@ class StyleAgent(BaseAgent):
         4. Convenciones de nombres
         5. Pylint (si esta disponibles en el entorno)
         6. Flake8 (si esta disponibles en el entorno)
+
+        Args:
+            context: Contexto de analisis con el codigo a revisar.
+
+        Returns:
+            Lista de Finding ordenada por numero de linea.
         """
+        # Emitir evento de inicio
+        self._emit_agent_started(context)
+
         self.log_info(f"Iniciando analisis de estilo para {context.filename}")
         findings: List[Finding] = []
 
@@ -105,12 +114,17 @@ class StyleAgent(BaseAgent):
                 f"Error de sintaxis en {context.filename}: {e}. "
                 "Algunos modulos de analisis pueden tener resultados incompletos."
             )
+            # Emitir evento de fallo pero continuar con findings parciales
+            self._emit_agent_failed(context, e)
 
-        # Eliminar duplicados y ordenar hallazgos por severidad
+        except Exception as e:
+            self.log_error(f"Error inesperado en analisis de estilo: {e}")
+            self._emit_agent_failed(context, e)
+            raise
+
+        # Eliminar duplicados y ordenar hallazgos por numero de linea
         findings = self._remove_duplicates(findings)
-        findings.sort(
-            key=lambda f: (["critical", "high", "medium", "low", "info"].index(f.severity.value))
-        )
+        findings.sort(key=lambda f: f.line_number)
 
         for finding in findings:
             self.log_info(
@@ -120,6 +134,9 @@ class StyleAgent(BaseAgent):
             )
 
         self.log_info(f"Analisis de estilo completado: {len(findings)} hallazgos")
+
+        # Emitir evento de completado
+        self._emit_agent_completed(context, findings)
 
         return findings
 
@@ -154,7 +171,7 @@ class StyleAgent(BaseAgent):
                 findings.append(
                     Finding(
                         severity=Severity.LOW,
-                        issue_type="line_too_long",
+                        issue_type="style/pep8",
                         message=(
                             f"La linea excede la longitud maxima de "
                             f"{self.line_length_limit} caracteres"
@@ -175,7 +192,7 @@ class StyleAgent(BaseAgent):
                 findings.append(
                     Finding(
                         severity=Severity.LOW,
-                        issue_type="trailing_whitespace",
+                        issue_type="style/pep8",
                         message="La linea tiene espacios en blanco al final",
                         line_number=line_num,
                         code_snippet=self._get_code_snippet(context, line_num),
@@ -190,7 +207,7 @@ class StyleAgent(BaseAgent):
                 findings.append(
                     Finding(
                         severity=Severity.MEDIUM,
-                        issue_type="tab_indentation",
+                        issue_type="style/pep8",
                         message="Se usan caracteres de tabulacion en la indentacion",
                         line_number=line_num,
                         code_snippet=self._get_code_snippet(context, line_num),
@@ -205,7 +222,7 @@ class StyleAgent(BaseAgent):
                 findings.append(
                     Finding(
                         severity=Severity.LOW,
-                        issue_type="multiple_blank_lines",
+                        issue_type="style/pep8",
                         message="Hay mas de dos lineas en blanco consecutivas",
                         line_number=line_num,
                         code_snippet=self._get_code_snippet(context, line_num),
@@ -249,7 +266,7 @@ class StyleAgent(BaseAgent):
                     findings.append(
                         Finding(
                             severity=Severity.LOW,
-                            issue_type="missing_docstring",
+                            issue_type="style/documentation",
                             message=f"La {node_type} publica '{name}' no tiene docstring",
                             line_number=node.lineno,
                             code_snippet=self._get_code_snippet(context, node.lineno),
@@ -306,7 +323,7 @@ class StyleAgent(BaseAgent):
                     findings.append(
                         Finding(
                             severity=Severity.LOW,
-                            issue_type="unused_import",
+                            issue_type="style/imports",
                             message=f"El nombre importado '{name}' no se usa en el archivo",
                             line_number=line,
                             code_snippet=self._get_code_snippet(context, line),
@@ -323,7 +340,7 @@ class StyleAgent(BaseAgent):
                     findings.append(
                         Finding(
                             severity=Severity.LOW,
-                            issue_type="duplicate_import",
+                            issue_type="style/imports",
                             message=f"El nombre '{name}' se importa multiples veces",
                             line_number=line,
                             code_snippet=self._get_code_snippet(context, line),
@@ -359,7 +376,7 @@ class StyleAgent(BaseAgent):
                     findings.append(
                         Finding(
                             severity=Severity.LOW,
-                            issue_type="naming_convention",
+                            issue_type="style/naming",
                             message=f"El nombre de funcion '{name}' debe usar snake_case",
                             line_number=node.lineno,
                             code_snippet=self._get_code_snippet(context, node.lineno),
@@ -381,7 +398,7 @@ class StyleAgent(BaseAgent):
                     findings.append(
                         Finding(
                             severity=Severity.LOW,
-                            issue_type="naming_convention",
+                            issue_type="style/naming",
                             message=f"El nombre de clase '{name}' debe usar PascalCase",
                             line_number=node.lineno,
                             code_snippet=self._get_code_snippet(context, node.lineno),
@@ -407,7 +424,7 @@ class StyleAgent(BaseAgent):
                             findings.append(
                                 Finding(
                                     severity=Severity.LOW,
-                                    issue_type="naming_convention",
+                                    issue_type="style/naming",
                                     message=(
                                         f"El nombre de constante '{name}' debe usar "
                                         "UPPER_SNAKE_CASE"
@@ -428,7 +445,7 @@ class StyleAgent(BaseAgent):
                             findings.append(
                                 Finding(
                                     severity=Severity.LOW,
-                                    issue_type="naming_convention",
+                                    issue_type="style/naming",
                                     message=(
                                         f"El nombre de variable '{name}' debe usar snake_case"
                                     ),
@@ -498,7 +515,7 @@ class StyleAgent(BaseAgent):
                 findings.append(
                     Finding(
                         severity=severity,
-                        issue_type="pylint_style",
+                        issue_type="style/pep8",
                         message=msg.strip(),
                         line_number=line_number,
                         code_snippet=self._get_code_snippet(context, line_number),
@@ -596,7 +613,7 @@ class StyleAgent(BaseAgent):
                 findings.append(
                     Finding(
                         severity=Severity.LOW,
-                        issue_type="flake8_style",
+                        issue_type="style/pep8",
                         message=msg_text.strip(),
                         line_number=line_number,
                         code_snippet=self._get_code_snippet(context, line_number),

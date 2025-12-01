@@ -97,12 +97,12 @@ class BaseAgent(ABC):
         """Emite evento AGENT_STARTED."""
         if self.event_bus:
             self.event_bus.publish(
+                "AGENT_STARTED",
                 {
-                    "type": "AGENT_STARTED",
                     "agent_name": self.name,
                     "analysis_id": str(context.analysis_id),
                     "timestamp": datetime.utcnow().isoformat(),
-                }
+                },
             )
         self.log_info("Analysis started")
 
@@ -110,13 +110,13 @@ class BaseAgent(ABC):
         """Emite evento AGENT_COMPLETED."""
         if self.event_bus:
             self.event_bus.publish(
+                "AGENT_COMPLETED",
                 {
-                    "type": "AGENT_COMPLETED",
                     "agent_name": self.name,
                     "analysis_id": str(context.analysis_id),
                     "findings_count": len(findings),
                     "timestamp": datetime.utcnow().isoformat(),
-                }
+                },
             )
         self.log_info(f"Analysis completed - {len(findings)} findings")
 
@@ -124,13 +124,13 @@ class BaseAgent(ABC):
         """Emite evento AGENT_FAILED."""
         if self.event_bus:
             self.event_bus.publish(
+                "AGENT_FAILED",
                 {
-                    "type": "AGENT_FAILED",
                     "agent_name": self.name,
                     "analysis_id": str(context.analysis_id),
                     "error": str(error),
                     "timestamp": datetime.utcnow().isoformat(),
-                }
+                },
             )
         self.log_error(f"Analysis failed: {error}")
 
