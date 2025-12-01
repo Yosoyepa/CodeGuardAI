@@ -10,11 +10,11 @@ Este agente analiza codigo Python en busca de problemas de estilo incluyendo:
 - Hallazgos externos de Pylint y Flake8
 """
 
-import sys
 import ast
 import os
 import re
 import subprocess
+import sys
 import tempfile
 from typing import Dict, List, Set
 
