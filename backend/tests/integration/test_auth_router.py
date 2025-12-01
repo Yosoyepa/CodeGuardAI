@@ -184,10 +184,11 @@ class TestLoginEndpoint:
         assert "inválido" in response.json()["detail"].lower()
 
     def test_login_missing_token(self, client):
-        """Sin token retorna 403."""
+        """Sin token retorna 401 o 403 (depende de versión FastAPI)."""
         response = client.post("/api/v1/auth/login")
 
-        assert response.status_code == 403
+        # 401 en versiones nuevas de Starlette, 403 en anteriores
+        assert response.status_code in (401, 403)
 
 
 class TestGetMeEndpoint:
@@ -262,7 +263,8 @@ class TestGetMeEndpoint:
         assert "inválido" in response.json()["detail"].lower()
 
     def test_get_me_missing_token(self, client):
-        """Sin token retorna 403."""
+        """Sin token retorna 401 o 403 (depende de versión FastAPI)."""
         response = client.get("/api/v1/auth/me")
 
-        assert response.status_code == 403
+        # 401 en versiones nuevas de Starlette, 403 en anteriores
+        assert response.status_code in (401, 403)
