@@ -98,7 +98,15 @@ class QualityAgent(BaseAgent):
         return findings
 
     def calculate_complexity(self, ast_tree: ast.AST) -> List[Finding]:
-        """Calcula la complejidad ciclomática usando Radon sobre el AST."""
+        """
+        Calcula la complejidad ciclomática usando Radon sobre el AST.
+
+        Args:
+            ast_tree (ast.AST): Árbol de sintaxis abstracta del código.
+
+        Returns:
+            List[Finding]: Lista de hallazgos de complejidad que superan el umbral.
+        """
         findings: List[Finding] = []
         if not radon_visit:
             return findings
@@ -138,7 +146,15 @@ class QualityAgent(BaseAgent):
         return findings
 
     def detect_code_duplication(self, code: str) -> List[Finding]:
-        """Detecta duplicación de código."""
+        """
+        Detecta duplicación de código mediante hashing de bloques.
+
+        Args:
+            code (str): Código fuente completo a analizar.
+
+        Returns:
+            List[Finding]: Lista de hallazgos de bloques de código duplicados.
+        """
         findings: List[Finding] = []
         lines = [line.strip() for line in code.splitlines()]
         block_hashes: Dict[str, List[int]] = {}
@@ -177,7 +193,15 @@ class QualityAgent(BaseAgent):
         return findings
 
     def measure_function_length(self, ast_tree: ast.AST) -> List[Finding]:
-        """Mide la longitud de las funciones."""
+        """
+        Mide la longitud de las funciones y detecta las que exceden el umbral.
+
+        Args:
+            ast_tree (ast.AST): Árbol de sintaxis abstracta del código.
+
+        Returns:
+            List[Finding]: Lista de hallazgos de funciones demasiado largas.
+        """
         findings: List[Finding] = []
 
         for node in ast.walk(ast_tree):
@@ -204,7 +228,15 @@ class QualityAgent(BaseAgent):
         return findings
 
     def calculate_maintainability_index(self, code: str) -> float:
-        """Calcula el índice de mantenibilidad."""
+        """
+        Calcula el índice de mantenibilidad (MI) del código.
+
+        Args:
+            code (str): Código fuente a analizar.
+
+        Returns:
+            float: Puntuación del índice de mantenibilidad (0-100).
+        """
         if not mi_visit:
             return 100.0
         try:
@@ -213,13 +245,30 @@ class QualityAgent(BaseAgent):
             return 100.0
 
     def _visit_function_def(self, node: ast.FunctionDef) -> Dict:
-        """Helper para extraer información de una definición de función."""
+        """
+        Helper para extraer información de una definición de función.
+
+        Args:
+            node (ast.FunctionDef): Nodo de definición de función del AST.
+
+        Returns:
+            Dict: Diccionario con nombre, línea de inicio y longitud de la función.
+        """
         length = 0
         if hasattr(node, "end_lineno") and hasattr(node, "lineno"):
             length = node.end_lineno - node.lineno
         return {"name": node.name, "lineno": node.lineno, "length": length}
 
     def _create_mi_finding(self, score: float) -> Finding:
+        """
+        Crea un hallazgo para un índice de mantenibilidad bajo.
+
+        Args:
+            score (float): Puntuación de mantenibilidad calculada.
+
+        Returns:
+            Finding: Objeto Finding con la severidad y detalles correspondientes.
+        """
         severity = Severity.MEDIUM
         if score < 20:
             severity = Severity.CRITICAL
