@@ -74,7 +74,8 @@ class BaseAgent(ABC):
         self.event_bus = event_bus
         self.logger = logging.getLogger(f"agents.{name}")
 
-        self.logger.info("[%s] Agent initialized - version %s", self.name, self.version)
+        self.logger.info("[%s] Agent initialized - version %s",
+                         self.name, self.version)
 
     @abstractmethod
     def analyze(self, context: AnalysisContext) -> List[Finding]:

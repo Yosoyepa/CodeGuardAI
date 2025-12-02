@@ -9,6 +9,7 @@ from uuid import uuid4
 from fastapi import HTTPException, UploadFile
 
 from src.agents.security_agent import SecurityAgent
+from src.agents.quality_agent import QualityAgent
 from src.core.events.analysis_events import AnalysisEventType
 from src.core.events.event_bus import EventBus
 from src.models.enums.review_status import ReviewStatus
@@ -72,13 +73,22 @@ class AnalysisService:
         # Notificar inicio usando el Enum
         self.event_bus.publish(AnalysisEventType.ANALYSIS_STARTED, {"id": str(analysis_id)})
 
-        # 3. Ejecutar Agentes (Solo SecurityAgent para Sprint 1)
+        # 3. Ejecutar Agentes (SecurityAgent y QualityAgent)
         findings: List[Finding] = []
+        
+        # Security Agent
         try:
             agent = SecurityAgent()
             findings = agent.analyze(context)
         except Exception as e:
             logger.error(f"Error ejecutando SecurityAgent: {e}")
+
+        # Quality Agent
+        try:
+            quality_agent = QualityAgent()
+            findings.extend(quality_agent.analyze(context))
+        except Exception as e:
+            logger.error(f"Error ejecutando QualityAgent: {e}")
 
         # 4. Calcular Quality Score (RN8)
         quality_score = self._calculate_quality_score(findings)
