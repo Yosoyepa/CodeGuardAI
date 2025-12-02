@@ -102,6 +102,7 @@ class AnalysisService:
             quality_score=quality_score,
             status=ReviewStatus.COMPLETED,
             total_findings=len(findings),
+            findings=findings,
             created_at=datetime.now(timezone.utc),
             completed_at=datetime.now(timezone.utc),
         )

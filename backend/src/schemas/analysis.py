@@ -11,6 +11,7 @@ from uuid import UUID, uuid4
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, field_validator, model_validator
 
 from src.models.enums.review_status import ReviewStatus
+from src.schemas.finding import Finding
 
 
 class AnalysisContext(BaseModel):
@@ -257,6 +258,9 @@ class CodeReview(BaseModel):
     quality_score: int = Field(..., ge=0, le=100, description="Puntaje de calidad (0-100)")
     status: ReviewStatus = Field(..., description="Estado actual del análisis")
     total_findings: int = Field(default=0, ge=0, description="Total de hallazgos encontrados")
+    findings: List[Finding] = Field(
+        default_factory=list, description="Lista de hallazgos detallados"
+    )
     created_at: datetime = Field(..., description="Fecha de creación del análisis")
     completed_at: Optional[datetime] = Field(default=None, description="Fecha de finalización")
 

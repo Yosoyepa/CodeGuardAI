@@ -29,9 +29,10 @@ def complex_function(x):
         context = AnalysisContext(code_content=code, filename="quality_test.py")
 
         # Mock Radon Complexity
-        with patch("src.agents.quality_agent.radon_visit") as mock_radon_visit, \
-             patch("src.agents.quality_agent.mi_visit") as mock_mi_visit:
-            
+        with patch("src.agents.quality_agent.radon_visit") as mock_radon_visit, patch(
+            "src.agents.quality_agent.mi_visit"
+        ) as mock_mi_visit:
+
             mock_func = MagicMock()
             mock_func.name = "complex_function"
             mock_func.complexity = 15
@@ -106,9 +107,10 @@ def complex_function(x):
         # Use valid code so AST parsing succeeds
         context = AnalysisContext(code_content="def foo(): pass", filename="test.py")
 
-        with patch("src.agents.quality_agent.mi_visit") as mock_mi, \
-             patch("src.agents.quality_agent.radon_visit", return_value=[]):
-            
+        with patch("src.agents.quality_agent.mi_visit") as mock_mi, patch(
+            "src.agents.quality_agent.radon_visit", return_value=[]
+        ):
+
             # Mock MI < 20
             mock_mi.return_value = 10.0
 
@@ -139,8 +141,9 @@ def complex_function(x):
 
     def test_radon_not_installed(self, agent):
         """Test behavior when radon is not installed."""
-        with patch("src.agents.quality_agent.radon_visit", None), \
-             patch("src.agents.quality_agent.mi_visit", None):
+        with patch("src.agents.quality_agent.radon_visit", None), patch(
+            "src.agents.quality_agent.mi_visit", None
+        ):
 
             findings_cc = agent.calculate_complexity(MagicMock())
             assert len(findings_cc) == 0
