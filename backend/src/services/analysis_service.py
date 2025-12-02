@@ -79,7 +79,7 @@ class AnalysisService:
         # Security Agent
         try:
             agent = SecurityAgent()
-            findings = agent.analyze(context)
+            findings.extend(agent.analyze(context))
         except Exception as e:
             logger.error(f"Error ejecutando SecurityAgent: {e}")
 
