@@ -75,7 +75,7 @@ class AnalysisService:
 
         # 3. Ejecutar Agentes (SecurityAgent y QualityAgent)
         findings: List[Finding] = []
-        
+
         # Security Agent
         try:
             agent = SecurityAgent()
