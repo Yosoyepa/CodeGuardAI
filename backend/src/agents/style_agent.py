@@ -6,26 +6,22 @@ Este agente analiza codigo Python en busca de problemas de estilo incluyendo:
 - Docstrings faltantes en funciones y clases publicas
 - Organizacion y uso de imports
 - Convenciones de nombres
-    (PEP 8: snake_case para funciones/variables, PascalCase para clases)
+(PEP 8: snake_case para funciones/variables, PascalCase para clases)
 - Hallazgos externos de Pylint y Flake8
 """
 
 import ast
-import os
 import re
-import subprocess
-import sys
-import tempfile
 from typing import Dict, List, Set
 
+from src.agents.analyzers import flake8_analyzer, pylint_analyzer
 from src.agents.base_agent import BaseAgent
 from src.schemas.analysis import AnalysisContext
 from src.schemas.finding import Finding, Severity
 
 
 class StyleAgent(BaseAgent):
-    """
-    Agente especializado en detectar violaciones de estilo en codigo Python.
+    """Agente especializado en detectar violaciones de estilo en codigo Python.
 
     Analiza el codigo usando multiples estrategias:
     1. Analisis de lineas (longitud, espacios)
@@ -51,6 +47,9 @@ class StyleAgent(BaseAgent):
         super().__init__(name="StyleAgent", version="1.0.0", category="style", enabled=True)
         # Usa el limite de clase por defecto
         self.line_length_limit = self.LINE_LENGTH_LIMIT
+        # Analizadores externos
+        self.pylint_analyzer = pylint_analyzer.PylintAnalyzer()
+        self.flake8_analyzer = flake8_analyzer.Flake8Analyzer()
         self.logger.info("StyleAgent inicializado con 6 modulos de analisis de estilo.")
 
     def analyze(self, context: AnalysisContext) -> List[Finding]:
@@ -125,13 +124,6 @@ class StyleAgent(BaseAgent):
         # Eliminar duplicados y ordenar hallazgos por numero de linea
         findings = self._remove_duplicates(findings)
         findings.sort(key=lambda f: f.line_number)
-
-        for finding in findings:
-            self.log_info(
-                f"[{finding.agent_name}] {finding.severity.value.upper()} "
-                f"line {finding.line_number} rule={finding.rule_id} "
-                f"issue_type={finding.issue_type} msg={finding.message}"
-            )
 
         self.log_info(f"Analisis de estilo completado: {len(findings)} hallazgos")
 
@@ -463,177 +455,54 @@ class StyleAgent(BaseAgent):
         return findings
 
     # ---------------------------------------------------------------------
-    # Modulo 5: integracion interna con Pylint
+    # Modulo 5: Pylint con analizador
     # ---------------------------------------------------------------------
     def _run_pylint(self, context: AnalysisContext) -> List[Finding]:
         """
-        Ejecuta pylint sobre el codigo usando un archivo temporal.
+        Ejecuta pylint usando PylintAnalyzer.
 
         Si pylint no esta disponible en el entorno, devuelve una lista vacia.
         """
         findings: List[Finding] = []
 
         try:
-            with tempfile.NamedTemporaryFile(
-                suffix=".py",
-                delete=False,
-                mode="w",
-                encoding="utf-8",
-            ) as tmp:
-                tmp.write(context.code_content)
-                tmp_path = tmp.name
-
-            cmd = [
-                sys.executable,
-                "-m",
-                "pylint",
-                tmp_path,
-                "--output-format=text",
-                "--score=no",
-                "--msg-template={line}:{column}:{msg_id}:{msg}",
-            ]
-
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                check=False,
+            findings = self.pylint_analyzer.analyze(
+                code_content=context.code_content,
+                agent_name=self.name,
             )
-
-            for line in result.stdout.splitlines():
-                parts = line.split(":", 3)
-                if len(parts) < 4:
-                    continue
-
-                line_str, _col_str, msg_id, msg = parts
-                try:
-                    line_number = int(line_str)
-                except ValueError:
-                    continue
-
-                severity = self._map_pylint_severity(msg_id)
-                findings.append(
-                    Finding(
-                        severity=severity,
-                        issue_type="style/pep8",
-                        message=msg.strip(),
-                        line_number=line_number,
-                        code_snippet=self._get_code_snippet(context, line_number),
-                        suggestion=None,
-                        agent_name=self.name,
-                        rule_id=f"PYLINT_{msg_id}",
-                    )
-                )
-
+            self.log_debug(f"PylintAnalyzer retorno {len(findings)} hallazgos")
         except FileNotFoundError:
             # pylint no esta instalado en este entorno
             self.log_info("pylint no disponible; se omiten hallazgos externos de pylint")
         except Exception as exc:
-            self.log_error(f"Error ejecutando pylint: {exc}")
-        finally:
-            try:
-                if "tmp_path" in locals() and os.path.exists(tmp_path):
-                    os.remove(tmp_path)
-            except OSError:
-                pass
+            # No romper todo el analisis si pylint falla
+            self.log_error(f"Error ejecutando PylintAnalyzer: {exc}")
 
         return findings
 
-    def _map_pylint_severity(self, msg_id: str) -> Severity:
-        """
-        Mapea el prefijo del mensaje de pylint a un nivel de severidad interno.
-        """
-        # pylint usa prefijos como:
-        # C = convention, R = refactor, W = warning, E = error, F = fatal
-        if not msg_id:
-            return Severity.LOW
-
-        prefix = msg_id[0].upper()
-        if prefix in ("E", "F"):
-            return Severity.HIGH
-        if prefix == "W":
-            return Severity.MEDIUM
-        if prefix in ("C", "R"):
-            return Severity.LOW
-        return Severity.LOW
-
     # ---------------------------------------------------------------------
-    # Modulo 6: integracion interna con Flake8
+    # Modulo 6: Flake8 con analizador
     # ---------------------------------------------------------------------
     def _run_flake8(self, context: AnalysisContext) -> List[Finding]:
         """
-        Ejecuta flake8 sobre el codigo usando un archivo temporal.
+        Ejecuta flake8 usando Flake8Analyzer.
 
         Si flake8 no esta disponible en el entorno, devuelve una lista vacia.
         """
         findings: List[Finding] = []
 
         try:
-            with tempfile.NamedTemporaryFile(
-                suffix=".py", delete=False, mode="w", encoding="utf-8"
-            ) as tmp:
-                tmp.write(context.code_content)
-                tmp_path = tmp.name
-
-            # Formato por defecto de flake8:
-            # path:line:col: code message
-            cmd = ["flake8", tmp_path]
-
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                check=False,
+            findings = self.flake8_analyzer.analyze(
+                code_content=context.code_content,
+                agent_name=self.name,
             )
-
-            for line in result.stdout.splitlines():
-                # path:line:col: code message...
-                parts = line.split(":", 3)
-                if len(parts) < 4:
-                    continue
-
-                _, line_str, col_str, rest = parts
-                rest = rest.strip()
-                if not rest:
-                    continue
-
-                # rest = "CODE message..."
-                code_and_msg = rest.split(" ", 1)
-                if len(code_and_msg) == 1:
-                    code = code_and_msg[0]
-                    msg_text = ""
-                else:
-                    code, msg_text = code_and_msg
-
-                try:
-                    line_number = int(line_str)
-                except ValueError:
-                    continue
-
-                findings.append(
-                    Finding(
-                        severity=Severity.LOW,
-                        issue_type="style/pep8",
-                        message=msg_text.strip(),
-                        line_number=line_number,
-                        code_snippet=self._get_code_snippet(context, line_number),
-                        suggestion=None,
-                        agent_name=self.name,
-                        rule_id=f"FLAKE8_{code}",
-                    )
-                )
-
+            self.log_debug(f"Flake8Analyzer retorno {len(findings)} hallazgos")
         except FileNotFoundError:
             # flake8 no esta instalado o no esta en PATH
             self.log_debug("flake8 no disponible; se omiten hallazgos externos de flake8")
         except Exception as exc:
-            self.log_error(f"Error ejecutando flake8: {exc}")
-        finally:
-            try:
-                if "tmp_path" in locals() and os.path.exists(tmp_path):
-                    os.remove(tmp_path)
-            except OSError:
-                pass
+            # No romper todo el analisis si flake8 falla
+            self.log_error(f"Error ejecutando Flake8Analyzer: {exc}")
 
         return findings
 
