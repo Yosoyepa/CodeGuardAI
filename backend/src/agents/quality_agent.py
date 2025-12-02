@@ -91,8 +91,9 @@ class QualityAgent(BaseAgent):
             self.log_error(f"Error durante análisis de calidad: {str(e)}")
 
         # Ordenar hallazgos por severidad
+        severity_order = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
         findings.sort(
-            key=lambda f: (["critical", "high", "medium", "low", "info"].index(f.severity.value))
+            key=lambda f: severity_order.get(f.severity.value, 99)
         )
 
         return findings
