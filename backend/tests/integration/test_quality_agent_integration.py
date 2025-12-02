@@ -9,7 +9,6 @@ import pytest
 
 from src.agents.quality_agent import QualityAgent
 from src.schemas.analysis import AnalysisContext
-from src.schemas.finding import Severity
 
 
 class TestQualityAgentIntegration:
