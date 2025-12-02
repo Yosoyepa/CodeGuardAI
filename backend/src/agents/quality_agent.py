@@ -151,7 +151,8 @@ class QualityAgent(BaseAgent):
                     finding = Finding(
                         severity=Severity.MEDIUM,
                         issue_type="quality/duplication",
-                        message=f"Bloque de código duplicado (original en línea {original_line + 1})",
+                        message=f"""Bloque de código
+                        duplicado (original en línea {original_line + 1})""",
                         line_number=i + 1,
                         code_snippet="...",
                         suggestion="Extrae la lógica duplicada a una función reutilizable",
@@ -180,7 +181,7 @@ class QualityAgent(BaseAgent):
                         message=f"Función '{node.name}' demasiado larga ({length} líneas)",
                         line_number=node.lineno,
                         code_snippet=f"def {node.name}...",
-                        suggestion=f"Divide la función en partes más pequeñas (límite: {self.function_length_threshold})",
+                        suggestion=f"""Divide la función en partes más pequeñas (límite: {self.function_length_threshold})""",
                         agent_name=self.name,
                         rule_id="QUAL005_FUNCTION_LENGTH",
                     )
