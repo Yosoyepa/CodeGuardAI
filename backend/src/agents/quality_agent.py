@@ -139,7 +139,7 @@ class QualityAgent(BaseAgent):
             return findings
 
         for i in range(len(lines) - block_size + 1):
-            block_content = "".join(lines[i : i + block_size])
+            block_content = "".join(lines[i:i + block_size])
             if not block_content or block_content.startswith("#"):
                 continue
 
