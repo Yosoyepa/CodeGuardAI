@@ -2,7 +2,7 @@
 Servicio de análisis de código para CodeGuard AI.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Tuple
 from uuid import uuid4
 
@@ -102,8 +102,8 @@ class AnalysisService:
             quality_score=quality_score,
             status=ReviewStatus.COMPLETED,
             total_findings=len(findings),
-            created_at=datetime.utcnow(),
-            completed_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
+            completed_at=datetime.now(timezone.utc),
         )
 
         # 6. Persistir (RN14)

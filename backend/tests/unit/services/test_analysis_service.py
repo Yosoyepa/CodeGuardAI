@@ -1,8 +1,9 @@
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import HTTPException, UploadFile
 
+from src.models.enums.review_status import ReviewStatus
 from src.schemas.finding import Finding, Severity
 from src.services.analysis_service import AnalysisService
 
@@ -71,6 +72,31 @@ async def test_validate_file_empty_error(service):
     assert exc.value.status_code == 422
 
 
+@pytest.mark.asyncio
+async def test_validate_file_no_filename_error(service):
+    """Verifica error 422 cuando no hay nombre de archivo."""
+    mock_file = AsyncMock(spec=UploadFile)
+    mock_file.filename = None
+
+    with pytest.raises(HTTPException) as exc:
+        await service._validate_file(mock_file)
+    assert exc.value.status_code == 422
+    assert "nombre del archivo es requerido" in exc.value.detail
+
+
+@pytest.mark.asyncio
+async def test_validate_file_unicode_error(service):
+    """Verifica error 422 con contenido no UTF-8."""
+    mock_file = AsyncMock(spec=UploadFile)
+    mock_file.filename = "binary.py"
+    mock_file.read.return_value = b"\x80\x81\x82"  # Invalid UTF-8
+
+    with pytest.raises(HTTPException) as exc:
+        await service._validate_file(mock_file)
+    assert exc.value.status_code == 422
+    assert "codificación UTF-8" in exc.value.detail
+
+
 # Tests de Cálculo de Score (RN8)
 
 
@@ -117,3 +143,73 @@ def test_calculate_quality_score_zero_floor(service):
 
     score = service._calculate_quality_score(findings)
     assert score == 0
+
+
+def test_calculate_quality_score_all_severities(service):
+    """Prueba cálculo con todas las severidades."""
+    findings = [
+        Finding(severity=Severity.CRITICAL, issue_type="x", message="message", line_number=1, agent_name="x"), # -10
+        Finding(severity=Severity.HIGH, issue_type="x", message="message", line_number=1, agent_name="x"),     # -5
+        Finding(severity=Severity.MEDIUM, issue_type="x", message="message", line_number=1, agent_name="x"),   # -2
+        Finding(severity=Severity.LOW, issue_type="x", message="message", line_number=1, agent_name="x"),      # -1
+        Finding(severity=Severity.INFO, issue_type="x", message="message", line_number=1, agent_name="x"),     # -0
+    ]
+    score = service._calculate_quality_score(findings)
+    assert score == 100 - (10 + 5 + 2 + 1 + 0)  # 82
+
+
+# Tests de analyze_code (Integración de servicio)
+
+@pytest.mark.asyncio
+async def test_analyze_code_success(service, mock_repo):
+    """Prueba el flujo completo de analyze_code."""
+    content = b"import os\n" * 6
+    mock_file = AsyncMock(spec=UploadFile)
+    mock_file.filename = "valid.py"
+    mock_file.read.return_value = content
+    
+    # Mock agents
+    with patch("src.services.analysis_service.SecurityAgent") as MockSecurityAgent, \
+         patch("src.services.analysis_service.QualityAgent") as MockQualityAgent:
+        
+        mock_sec_instance = MockSecurityAgent.return_value
+        mock_sec_instance.analyze.return_value = []
+        
+        mock_qual_instance = MockQualityAgent.return_value
+        mock_qual_instance.analyze.return_value = []
+        
+        mock_repo.create.return_value = MagicMock(status=ReviewStatus.COMPLETED)
+
+        result = await service.analyze_code(mock_file, "user_123")
+        
+        assert result.status == ReviewStatus.COMPLETED
+        mock_repo.create.assert_called_once()
+        mock_sec_instance.analyze.assert_called_once()
+        mock_qual_instance.analyze.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_analyze_code_agent_failure(service, mock_repo):
+    """Prueba que el análisis continúe si un agente falla."""
+    content = b"import os\n" * 6
+    mock_file = AsyncMock(spec=UploadFile)
+    mock_file.filename = "valid.py"
+    mock_file.read.return_value = content
+    
+    with patch("src.services.analysis_service.SecurityAgent") as MockSecurityAgent, \
+         patch("src.services.analysis_service.QualityAgent") as MockQualityAgent:
+        
+        # Security agent fails
+        mock_sec_instance = MockSecurityAgent.return_value
+        mock_sec_instance.analyze.side_effect = Exception("Security Agent Failed")
+        
+        # Quality agent succeeds
+        mock_qual_instance = MockQualityAgent.return_value
+        mock_qual_instance.analyze.return_value = []
+        
+        mock_repo.create.return_value = MagicMock(status=ReviewStatus.COMPLETED)
+
+        result = await service.analyze_code(mock_file, "user_123")
+        
+        assert result.status == ReviewStatus.COMPLETED
+        mock_repo.create.assert_called_once()
