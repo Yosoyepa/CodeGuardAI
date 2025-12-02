@@ -4,9 +4,6 @@ import pytest
 
 from src.agents.quality_agent import QualityAgent
 from src.schemas.analysis import AnalysisContext
-from src.schemas.finding import Finding, Severity
-
-
 class TestQualityAgent:
     """Test suite for QualityAgent."""
 
