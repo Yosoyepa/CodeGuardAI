@@ -4,7 +4,7 @@ QualityAgent - Agente especializado en análisis de calidad de código.
 
 import ast
 import hashlib
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 try:
     from radon.complexity import cc_visit_ast as radon_visit
