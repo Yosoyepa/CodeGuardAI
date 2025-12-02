@@ -3,7 +3,7 @@ Esquemas de análisis usando Pydantic v2
 """
 
 import ast as python_ast
-from datetime import datetime
+from datetime import datetime, timezone
 from textwrap import dedent
 from typing import Any, Dict, List, Optional
 from uuid import UUID, uuid4
@@ -43,7 +43,7 @@ class AnalysisContext(BaseModel):
     analysis_id: UUID = Field(default_factory=uuid4, description="ID único del análisis")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Información adicional")
     created_at: datetime = Field(
-        default_factory=datetime.utcnow, description="Timestamp UTC de creación"
+        default_factory=lambda: datetime.now(timezone.utc), description="Timestamp UTC de creación"
     )
 
     # Se Usa PrivateAttr en Pydantic v2 por sugerencia
