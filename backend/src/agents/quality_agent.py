@@ -1,5 +1,5 @@
 """
-QualityAgent - Agente especializado en análisis de calidad de código.
+QualityAgent - Agente especializado en análisis de calidad de código Python.
 """
 
 import ast
