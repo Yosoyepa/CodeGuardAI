@@ -68,6 +68,9 @@ class CodeReviewRepository:
             # Persistir hallazgos (findings)
             for finding in review.findings:
                 # Mapear severidad de Schema (lowercase) a Entity (uppercase)
+                if finding.severity.name not in SeverityEnum.__members__:
+                    logger.warning(f"Finding with unsupported severity '{finding.severity.name}' skipped for review {review.id}.")
+                    continue
                 severity_enum = SeverityEnum[finding.severity.name]
 
                 finding_entity = AgentFindingEntity(
