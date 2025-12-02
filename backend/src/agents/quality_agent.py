@@ -71,8 +71,7 @@ class QualityAgent(BaseAgent):
             findings.extend(self.measure_function_length(ast_tree))
 
             # 4. Índice de Mantenibilidad
-            mi_score = self.calculate_maintainability_index(
-                context.code_content)
+            mi_score = self.calculate_maintainability_index(context.code_content)
             if mi_score < self.maintainability_threshold:
                 findings.append(self._create_mi_finding(mi_score))
 
@@ -84,8 +83,7 @@ class QualityAgent(BaseAgent):
 
         # Ordenar hallazgos por severidad
         findings.sort(
-            key=lambda f: (["critical", "high", "medium",
-                           "low", "info"].index(f.severity.value))
+            key=lambda f: (["critical", "high", "medium", "low", "info"].index(f.severity.value))
         )
 
         return findings
@@ -141,7 +139,7 @@ class QualityAgent(BaseAgent):
             return findings
 
         for i in range(len(lines) - block_size + 1):
-            block_content = "".join(lines[i: i + block_size])
+            block_content = "".join(lines[i : i + block_size])
             if not block_content or block_content.startswith("#"):
                 continue
 
@@ -186,7 +184,8 @@ class QualityAgent(BaseAgent):
                         suggestion=(
                             f"""Divide la función en partes más pequeñas """
                             f"""(límite: {self.function_length_threshold})"""
-                        ), agent_name=self.name,
+                        ),
+                        agent_name=self.name,
                         rule_id="QUAL005_FUNCTION_LENGTH",
                     )
                     findings.append(finding)
