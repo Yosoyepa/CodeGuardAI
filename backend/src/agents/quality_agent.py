@@ -52,6 +52,12 @@ class QualityAgent(BaseAgent):
     def analyze(self, context: AnalysisContext) -> List[Finding]:
         """
         Analiza código Python en busca de problemas de calidad.
+
+        Args:
+            context (AnalysisContext): Contexto del análisis con código y metadatos.
+
+        Returns:
+            List[Finding]: Lista de hallazgos ordenados por severidad.
         """
         self._emit_agent_started(context)
         findings: List[Finding] = []
