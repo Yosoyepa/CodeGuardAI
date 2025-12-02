@@ -27,6 +27,9 @@ class QualityAgent(BaseAgent):
     def __init__(self, event_bus=None):
         """
         Inicializa QualityAgent con reglas de calidad.
+
+        Args:
+            event_bus: EventBus para emitir eventos (opcional)
         """
         super().__init__(
             name="QualityAgent",
