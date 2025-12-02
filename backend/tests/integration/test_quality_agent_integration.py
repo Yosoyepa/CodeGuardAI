@@ -99,15 +99,15 @@ def another_complex_function(x, y):
 
         # Verify each issue type is detected
         issue_types = {f.issue_type for f in findings}
-        
+
         # Note: Depending on the exact complexity score, it might be medium or high
         assert "quality/cyclomatic-complexity" in issue_types
         assert "quality/duplication" in issue_types
-        
+
         # Verify severity distribution
         # Complexity > 10 is Medium, > 20 is High. The sample code is moderately complex.
         # Duplication is Medium.
-        
+
         # Verify findings have suggestions
         for finding in findings:
             assert finding.suggestion is not None
@@ -173,10 +173,10 @@ class UserProcessor:
         bad_code = "def complex_func(x):\n"
         for i in range(20):
             bad_code += f"    if x == {i}: return {i}\n"
-        
+
         context = AnalysisContext(code_content=bad_code, filename="complex.py")
         context.add_metadata("user_id", "dev_user")
-        
+
         findings = agent.analyze(context)
         assert len(findings) > 0
         for finding in findings:
@@ -200,7 +200,7 @@ def duplicated_logic():
     return x + y + z
 """
         large_code += dupe_block
-        large_code += dupe_block # Duplication
+        large_code += dupe_block  # Duplication
 
         context = AnalysisContext(code_content=large_code, filename="large_module.py")
 

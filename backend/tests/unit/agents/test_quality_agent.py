@@ -1,8 +1,11 @@
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
+
 from src.agents.quality_agent import QualityAgent
 from src.schemas.analysis import AnalysisContext
 from src.schemas.finding import Finding, Severity
+
 
 class TestQualityAgent:
     """Test suite for QualityAgent."""
@@ -50,6 +53,7 @@ def complex_function(x):
         # Create a valid python code with a long function
         code = "def long_func():\n" + "\n".join([f"    x = {i}" for i in range(105)])
         import ast
+
         tree = ast.parse(code)
         findings = agent.measure_function_length(tree)
         assert len(findings) == 1
@@ -72,16 +76,17 @@ def complex_function(x):
     def test_complexity_thresholds(self, agent, mocker):
         """Test different complexity thresholds (High/Critical)."""
         import ast
+
         tree = ast.parse("def foo(): pass")
-        
+
         mock_radon_visit = mocker.patch("src.agents.quality_agent.radon_visit")
-        
+
         # Case 1: Critical (> 50)
         mock_crit = mocker.Mock()
         mock_crit.name = "crit_func"
         mock_crit.complexity = 51
         mock_crit.lineno = 1
-        
+
         # Case 2: High (> 20)
         mock_high = mocker.Mock()
         mock_high.name = "high_func"
@@ -89,9 +94,9 @@ def complex_function(x):
         mock_high.lineno = 5
 
         mock_radon_visit.return_value = [mock_crit, mock_high]
-        
+
         findings = agent.calculate_complexity(tree)
-        
+
         assert len(findings) == 2
         severities = [f.severity for f in findings]
         assert Severity.CRITICAL in severities
@@ -101,22 +106,24 @@ def complex_function(x):
         """Test critical maintainability index."""
         # Use valid code so AST parsing succeeds
         context = AnalysisContext(code_content="def foo(): pass", filename="test.py")
-        
+
         # Mock MI < 20
         mock_mi = mocker.patch("src.agents.quality_agent.mi_visit")
         mock_mi.return_value = 10.0
-        
+
         # Mock other analyzers to return empty
         mocker.patch("src.agents.quality_agent.radon_visit", return_value=[])
-        
+
         findings = agent.analyze(context)
-        mi_finding = next((f for f in findings if f.issue_type == "quality/maintainability-index"), None)
+        mi_finding = next(
+            (f for f in findings if f.issue_type == "quality/maintainability-index"), None
+        )
         assert mi_finding is not None
         assert mi_finding.severity == Severity.CRITICAL
 
     def test_short_file_duplication(self, agent):
         """Test that short files skip duplication check."""
-        code = "print('hello')\n" * 2 
+        code = "print('hello')\n" * 2
         findings = agent.detect_code_duplication(code)
         assert len(findings) == 0
 
@@ -126,7 +133,7 @@ def complex_function(x):
         # Block size is 4 lines. We need a block of 4 lines repeated.
         block = "x = 1\ny = 2\nz = 3\nw = 4\n"
         code = block + "a = 0\n" + block
-        
+
         findings = agent.detect_code_duplication(code)
         assert len(findings) > 0
         assert findings[0].issue_type == "quality/duplication"
@@ -136,10 +143,10 @@ def complex_function(x):
         """Test behavior when radon is not installed."""
         mocker.patch("src.agents.quality_agent.radon_visit", None)
         mocker.patch("src.agents.quality_agent.mi_visit", None)
-        
+
         findings_cc = agent.calculate_complexity(MagicMock())
         assert len(findings_cc) == 0
-        
+
         score = agent.calculate_maintainability_index("code")
         assert score == 100.0
 

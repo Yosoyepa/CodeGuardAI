@@ -6,7 +6,7 @@ import pytest
 from fastapi import HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
 
-from src.core.dependencies.auth import get_current_user
+from src.core.dependencies.auth import get_current_user, get_optional_user
 from src.external.clerk_client import ClerkTokenExpiredError, ClerkTokenInvalidError
 from src.schemas.user import Role, User
 
