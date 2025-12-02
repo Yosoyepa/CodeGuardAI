@@ -168,7 +168,8 @@ class QualityAgent(BaseAgent):
             if not block_content or block_content.startswith("#"):
                 continue
 
-            block_hash = hashlib.md5(block_content.encode("utf-8")).hexdigest()
+            # Non-cryptographic hash for code duplication detection; intentionally not secure.
+            block_hash = str(hash(block_content))
 
             if block_hash in block_hashes:
                 original_line = block_hashes[block_hash][0]
