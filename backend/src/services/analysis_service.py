@@ -8,8 +8,8 @@ from uuid import uuid4
 
 from fastapi import HTTPException, UploadFile
 
-from src.agents.security_agent import SecurityAgent
 from src.agents.quality_agent import QualityAgent
+from src.agents.security_agent import SecurityAgent
 from src.core.events.analysis_events import AnalysisEventType
 from src.core.events.event_bus import EventBus
 from src.models.enums.review_status import ReviewStatus
