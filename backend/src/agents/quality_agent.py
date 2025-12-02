@@ -99,7 +99,20 @@ class QualityAgent(BaseAgent):
         return findings
 
     def calculate_complexity(self, ast_tree: ast.AST) -> List[Finding]:
-        """Calcula la complejidad ciclomática usando Radon sobre el AST."""
+        """
+        Calcula la complejidad ciclomática usando Radon sobre el AST.
+
+        Analiza cada función/método en el árbol AST y genera hallazgos
+        para aquellas que excedan el umbral de complejidad configurado.
+
+        Args:
+            ast_tree (ast.AST): Árbol de sintaxis abstracta del código a analizar.
+
+        Returns:
+            List[Finding]: Lista de hallazgos de complejidad. Cada hallazgo
+                incluye la severidad (MEDIUM, HIGH o CRITICAL) según el nivel
+                de complejidad detectado.
+        """
         findings: List[Finding] = []
         if not radon_visit:
             return findings
@@ -139,7 +152,21 @@ class QualityAgent(BaseAgent):
         return findings
 
     def detect_code_duplication(self, code: str) -> List[Finding]:
-        """Detecta duplicación de código."""
+        """
+        Detecta duplicación de código mediante comparación de bloques hash.
+
+        Divide el código en bloques de líneas consecutivas y usa hashes MD5
+        para identificar bloques duplicados que aparezcan en diferentes
+        ubicaciones del archivo.
+
+        Args:
+            code (str): Código fuente como cadena de texto a analizar.
+
+        Returns:
+            List[Finding]: Lista de hallazgos de duplicación. Cada hallazgo
+                indica la línea donde se encontró el bloque duplicado y
+                referencia la línea del bloque original.
+        """
         findings: List[Finding] = []
         lines = [line.strip() for line in code.splitlines()]
         block_hashes: Dict[str, List[int]] = {}
@@ -178,7 +205,21 @@ class QualityAgent(BaseAgent):
         return findings
 
     def measure_function_length(self, ast_tree: ast.AST) -> List[Finding]:
-        """Mide la longitud de las funciones."""
+        """
+        Mide la longitud de las funciones y detecta aquellas excesivamente largas.
+
+        Recorre todas las definiciones de funciones (síncronas y asíncronas)
+        en el árbol AST y genera hallazgos para las que excedan el umbral
+        de longitud configurado.
+
+        Args:
+            ast_tree (ast.AST): Árbol de sintaxis abstracta del código a analizar.
+
+        Returns:
+            List[Finding]: Lista de hallazgos de funciones largas. Cada hallazgo
+                incluye el nombre de la función, su longitud en líneas y una
+                sugerencia para dividirla en partes más pequeñas.
+        """
         findings: List[Finding] = []
 
         for node in ast.walk(ast_tree):
@@ -205,7 +246,20 @@ class QualityAgent(BaseAgent):
         return findings
 
     def calculate_maintainability_index(self, code: str) -> float:
-        """Calcula el índice de mantenibilidad."""
+        """
+        Calcula el índice de mantenibilidad del código usando Radon.
+
+        El índice de mantenibilidad es una métrica compuesta que considera
+        la complejidad ciclomática, líneas de código y volumen de Halstead.
+        Valores más altos indican código más fácil de mantener.
+
+        Args:
+            code (str): Código fuente como cadena de texto a analizar.
+
+        Returns:
+            float: Índice de mantenibilidad (0-100). Retorna 100.0 si Radon
+                no está disponible o si ocurre un error durante el cálculo.
+        """
         if not mi_visit:
             return 100.0
         try:
