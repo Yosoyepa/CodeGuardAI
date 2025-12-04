@@ -27,8 +27,28 @@ class PerformanceVisitor(ast.NodeVisitor):
 
     def __init__(self):
         self.findings_data: List[dict] = []
+        self.safe_lines: Set[int] = set()
         self.loop_depth = 0
         self.in_loop = False
+
+    def visit_With(self, node: ast.With):
+        self._check_safe_resources(node)
+        self.generic_visit(node)
+
+    def visit_AsyncWith(self, node: ast.AsyncWith):
+        self._check_safe_resources(node)
+        self.generic_visit(node)
+
+    def _check_safe_resources(self, node):
+        for item in node.items:
+            if not isinstance(item.context_expr, ast.Call):
+                continue
+
+            func = item.context_expr.func
+            if (isinstance(func, ast.Name) and func.id == "open") or (
+                isinstance(func, ast.Attribute) and func.attr == "socket"
+            ):
+                self.safe_lines.add(item.context_expr.lineno)
 
     def visit_For(self, node: ast.For):
         self._check_nested_loop(node)
@@ -59,56 +79,44 @@ class PerformanceVisitor(ast.NodeVisitor):
 
     def visit_Call(self, node: ast.Call):
         """Detecta llamadas a funciones ineficientes o mal gestionadas."""
-        self._check_resource_leak(node)
-        self._check_inefficient_collection_ops(node)
-        self._check_n_plus_one_query(node)
-        self._check_memory_intensive(node)
-        self.generic_visit(node)
+        # Analizar la función llamada una sola vez para reducir complejidad
+        func = node.func
 
-    def _check_resource_leak(self, node: ast.Call):
-        """Detecta uso de open() o socket() fuera de un contexto 'with'."""
-        # Detectar open()
-        if isinstance(node.func, ast.Name) and node.func.id == "open":
-            self.findings_data.append({"type": "resource_leak", "resource": "file", "node": node})
-        # Detectar socket.socket()
-        elif isinstance(node.func, ast.Attribute) and node.func.attr == "socket":
-            # Asumimos que viene de módulo socket, aunque es heurístico
-            self.findings_data.append({"type": "resource_leak", "resource": "socket", "node": node})
-
-    def _check_inefficient_collection_ops(self, node: ast.Call):
-        """Detecta operaciones O(n) dentro de bucles."""
-        if not self.in_loop:
-            return
-
-        # Detectar list.insert(0, ...)
-        if isinstance(node.func, ast.Attribute) and node.func.attr == "insert":
-            if node.args and isinstance(node.args[0], ast.Constant) and node.args[0].value == 0:
-                self.findings_data.append({"type": "inefficient_insert", "node": node})
-
-    def _check_n_plus_one_query(self, node: ast.Call):
-        """Detecta el problema N+1: Consultas a BD dentro de bucles."""
-        if not self.in_loop:
-            return
-
-        method_name = ""
-        if isinstance(node.func, ast.Attribute):
-            method_name = node.func.attr
-
-        if method_name in self.DB_METHODS:
-            self.findings_data.append({"type": "n_plus_one", "method": method_name, "node": node})
-
-    def _check_memory_intensive(self, node: ast.Call):
-        """Detecta operaciones que cargan datos sin límites en memoria."""
-        method_name = ""
-        if isinstance(node.func, ast.Attribute):
-            method_name = node.func.attr
-
-        if method_name in self.MEMORY_INTENSIVE_METHODS:
-            # Si se llama sin argumentos (ej: f.read()), lee todo el archivo
-            if not node.args:
+        if isinstance(func, ast.Name):
+            # Caso: open()
+            if func.id == "open":
                 self.findings_data.append(
-                    {"type": "memory_intensive", "method": method_name, "node": node}
+                    {"type": "resource_leak", "resource": "file", "node": node}
                 )
+
+        elif isinstance(func, ast.Attribute):
+            method_name = func.attr
+
+            # Caso: socket.socket()
+            if method_name == "socket":
+                self.findings_data.append(
+                    {"type": "resource_leak", "resource": "socket", "node": node}
+                )
+
+            # Caso: list.insert(0)
+            elif method_name == "insert" and self.in_loop:
+                if node.args and isinstance(node.args[0], ast.Constant) and node.args[0].value == 0:
+                    self.findings_data.append({"type": "inefficient_insert", "node": node})
+
+            # Caso: DB Methods (N+1)
+            elif self.in_loop and method_name in self.DB_METHODS:
+                self.findings_data.append(
+                    {"type": "n_plus_one", "method": method_name, "node": node}
+                )
+
+            # Caso: Memory Intensive
+            elif method_name in self.MEMORY_INTENSIVE_METHODS:
+                if not node.args:
+                    self.findings_data.append(
+                        {"type": "memory_intensive", "method": method_name, "node": node}
+                    )
+
+        self.generic_visit(node)
 
     def visit_Compare(self, node: ast.Compare):
         """Detecta búsquedas lineales ineficientes dentro de bucles."""
@@ -162,15 +170,12 @@ class PerformanceAgent(BaseAgent):
         try:
             tree = ast.parse(context.code_content)
 
-            # 1. Validar uso de 'with' para recursos
-            safe_resource_lines = self._find_safe_resource_calls(tree)
-
-            # 2. Ejecutar el visitante principal
+            # 1. Ejecutar el visitante principal (detecta problemas y recursos seguros)
             visitor = PerformanceVisitor()
             visitor.visit(tree)
 
             for item in visitor.findings_data:
-                finding = self._create_finding(item, context, safe_resource_lines)
+                finding = self._create_finding(item, context, visitor.safe_lines)
                 if finding:
                     findings.append(finding)
 
@@ -190,22 +195,6 @@ class PerformanceAgent(BaseAgent):
             self.log_error(f"Error inesperado en PerformanceAgent: {e}")
 
         return findings
-
-    def _find_safe_resource_calls(self, tree: ast.AST) -> Set[int]:
-        """Identifica las líneas donde recursos se usan correctamente dentro de un 'with'."""
-        safe_lines = set()
-        for node in ast.walk(tree):
-            if isinstance(node, (ast.With, ast.AsyncWith)):
-                for item in node.items:
-                    if isinstance(item.context_expr, ast.Call):
-                        func = item.context_expr.func
-                        # Detectar open()
-                        if isinstance(func, ast.Name) and func.id == "open":
-                            safe_lines.add(item.context_expr.lineno)
-                        # Detectar socket.socket()
-                        elif isinstance(func, ast.Attribute) and func.attr == "socket":
-                            safe_lines.add(item.context_expr.lineno)
-        return safe_lines
 
     def _create_finding(
         self, item: dict, context: AnalysisContext, safe_lines: Set[int]
