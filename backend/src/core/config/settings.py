@@ -48,7 +48,7 @@ class Settings(BaseSettings):
     # CORS - Support Vercel preview URLs with wildcard patterns
     ALLOWED_ORIGINS: str = Field(
         default="http://localhost:3000,http://localhost:5173",
-        description="Comma-separated list of allowed origins. Supports wildcards for Vercel."
+        description="Comma-separated list of allowed origins. Supports wildcards for Vercel.",
     )
 
     # Redis (opcional)
