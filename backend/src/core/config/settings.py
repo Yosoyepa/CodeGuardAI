@@ -43,10 +43,13 @@ class Settings(BaseSettings):
 
     # API
     API_HOST: str = "0.0.0.0"
-    API_PORT: int = 8000
+    API_PORT: int = Field(default=8000, description="Port for API, Cloud Run uses PORT env var")
 
-    # CORS
-    ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:5173"
+    # CORS - Support Vercel preview URLs with wildcard patterns
+    ALLOWED_ORIGINS: str = Field(
+        default="http://localhost:3000,http://localhost:5173",
+        description="Comma-separated list of allowed origins. Supports wildcards for Vercel.",
+    )
 
     # Redis (opcional)
     REDIS_URL: Optional[str] = None
