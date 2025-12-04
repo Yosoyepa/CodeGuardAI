@@ -8,16 +8,13 @@ from uuid import uuid4
 
 from fastapi import HTTPException, UploadFile
 
-from src.agents.performance_agent import PerformanceAgent
-from src.agents.quality_agent import QualityAgent
-from src.agents.security_agent import SecurityAgent
-from src.agents.style_agent import StyleAgent
+from src.agents.orchestrator import OrchestratorAgent
 from src.core.events.analysis_events import AnalysisEventType
 from src.core.events.event_bus import EventBus
 from src.models.enums.review_status import ReviewStatus
 from src.repositories.code_review_repository import CodeReviewRepository
 from src.schemas.analysis import AnalysisContext, CodeReview
-from src.schemas.finding import Finding, Severity
+from src.schemas.finding import Finding
 from src.utils.logger import logger
 
 
@@ -36,6 +33,8 @@ class AnalysisService:
         """
         self.repo = repo
         self.event_bus = EventBus()
+        # Orquestador de la capa de dominio, reutilizando el mismo EventBus
+        self.orchestrator = OrchestratorAgent(event_bus=self.event_bus)
 
     async def analyze_code(self, file: UploadFile, user_id: str) -> CodeReview:
         """
@@ -44,7 +43,7 @@ class AnalysisService:
         Flujo (RN4, RN5, RN8):
         1. Validar archivo.
         2. Crear contexto de análisis.
-        3. Ejecutar SecurityAgent.
+        3. Ejecutar agentes via OrchestratorAgent.
         4. Calcular métricas.
         5. Persistir resultados.
 
@@ -75,35 +74,12 @@ class AnalysisService:
         # Notificar inicio usando el Enum
         self.event_bus.publish(AnalysisEventType.ANALYSIS_STARTED, {"id": str(analysis_id)})
 
-        # 3. Ejecutar Agentes (SecurityAgent, StyleAgent y QualityAgent)
+        # 3. Ejecutar agentes via OrchestratorAgent (Security, Style, Quality, etc.)
         findings: List[Finding] = []
-
-        # Security Agent + Style Agent
         try:
-            security_agent = SecurityAgent()
-            style_agent = StyleAgent()
-
-            security_findings = security_agent.analyze(context)
-            style_findings = style_agent.analyze(context)
-
-            findings = security_findings + style_findings
-
-        except Exception as e:
-            logger.error(f"Error ejecutando agentes de analisis: {e}")
-
-        # Quality Agent
-        try:
-            quality_agent = QualityAgent()
-            findings.extend(quality_agent.analyze(context))
-        except Exception as e:
-            logger.error(f"Error ejecutando QualityAgent: {e}")
-
-        # Performance Agent
-        try:
-            performance_agent = PerformanceAgent()
-            findings.extend(performance_agent.analyze(context))
-        except Exception as e:
-            logger.error(f"Error ejecutando PerformanceAgent: {e}")
+            findings = self.orchestrator.orchestrate_analysis(context)
+        except Exception as exc:  # pylint: disable=broad-except
+            logger.error("Error ejecutando orquestador de analisis: %s", exc)
 
         # 4. Calcular Quality Score (RN8)
         quality_score = self._calculate_quality_score(findings)
@@ -193,23 +169,7 @@ class AnalysisService:
         """
         Calcula el puntaje de calidad basado en penalizaciones (RN8).
 
-        Fórmula: score = max(0, 100 - penalizaciones)
-
-        Args:
-            findings: Lista de hallazgos detectados.
-
-        Returns:
-            int: Puntaje de calidad (0-100).
+        Delegado al OrchestratorAgent para mantener la logica
+        de negocio en la capa de dominio.
         """
-        penalty = 0
-        for finding in findings:
-            if finding.severity == Severity.CRITICAL:
-                penalty += 10
-            elif finding.severity == Severity.HIGH:
-                penalty += 5
-            elif finding.severity == Severity.MEDIUM:
-                penalty += 2
-            elif finding.severity == Severity.LOW:
-                penalty += 1
-
-        return max(0, 100 - penalty)
+        return self.orchestrator.calculate_quality_score(findings)
