@@ -200,7 +200,7 @@ class SecurityAgent(BaseAgent):
 
         # Ordenar hallazgos por severidad (CRITICAL primero)
         findings.sort(
-            key=lambda f: (["critical", "high", "medium", "low", "info"].index(f.severity.value))
+            key=lambda f: (["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"].index(f.severity.value))
         )
 
         self.log_info(

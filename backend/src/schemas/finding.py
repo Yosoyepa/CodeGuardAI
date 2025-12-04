@@ -22,11 +22,11 @@ class Severity(str, Enum):
     INFO: Información, no es un problema
     """
 
-    CRITICAL = "critical"
-    HIGH = "high"
-    MEDIUM = "medium"
-    LOW = "low"
-    INFO = "info"
+    CRITICAL = "CRITICAL"
+    HIGH = "HIGH"
+    MEDIUM = "MEDIUM"
+    LOW = "LOW"
+    INFO = "INFO"
 
 
 class Finding(BaseModel):
@@ -72,7 +72,7 @@ class Finding(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
-                "severity": "critical",
+                "severity": "CRITICAL",
                 "issue_type": "dangerous_function",
                 "message": "Use of eval() detected",
                 "line_number": 10,

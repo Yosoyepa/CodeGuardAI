@@ -5,7 +5,7 @@ Orquesta la validación de tokens JWT de Clerk y la sincronización
 de usuarios en la base de datos.
 """
 
-from src.external.clerk_client import ClerkClient
+from src.external.clerk_client import ClerkClient, ClerkTokenInvalidError
 from src.models.user import UserEntity
 from src.repositories.user_repo import UserRepository
 from src.schemas.user import Role, User
@@ -52,7 +52,11 @@ class AuthService:
         # 1. Validar token con Clerk
         clerk_data = self._clerk_client.verify_token(token)
 
-        user_id = clerk_data["user_id"]
+        # Clerk usa 'sub' para user_id en el payload JWT
+        user_id = clerk_data.get("sub")
+        if not user_id:
+            raise ClerkTokenInvalidError("Token no contiene 'sub' claim")
+
         email = clerk_data.get("email")
         name = clerk_data.get("name")
 
@@ -94,8 +98,12 @@ class AuthService:
         """
         clerk_data = self._clerk_client.verify_token(token)
 
+        user_id = clerk_data.get("sub")
+        if not user_id:
+            raise ClerkTokenInvalidError("Token no contiene 'sub' claim")
+
         return User(
-            id=clerk_data["user_id"],
+            id=user_id,
             email=clerk_data.get("email", ""),
             name=clerk_data.get("name"),
             role=Role.DEVELOPER,

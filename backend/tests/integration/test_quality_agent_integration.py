@@ -115,7 +115,7 @@ def another_complex_function(x, y):
 
         # Verify findings are sorted by severity
         severities = [f.severity.value for f in findings]
-        expected_order = ["critical", "high", "medium", "low", "info"]
+        expected_order = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]
 
         for i in range(len(severities) - 1):
             assert expected_order.index(severities[i]) <= expected_order.index(severities[i + 1])

@@ -19,7 +19,7 @@ token = jwt.encode(
         "app_metadata": {},
         "user_metadata": {},
     },
-    "sk_test_hwourB8W6TcFQwgvcmMln6lwFZSUwesWOD8zSWbteZ",
+    "sk_test_B9jJLVRD26bS62mEXg3u0e6ARxxtIznBQBDsCbhe2m",
     algorithm="HS256",
 )
 

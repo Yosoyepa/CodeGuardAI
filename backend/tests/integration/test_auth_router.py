@@ -70,7 +70,7 @@ class TestLoginEndpoint:
         # Arrange
         mock_clerk = MagicMock()
         mock_clerk.verify_token.return_value = {
-            "user_id": "user_123",
+            "sub": "user_123",
             "email": "test@example.com",
             "name": "Test User",
         }
@@ -108,7 +108,7 @@ class TestLoginEndpoint:
         # Arrange
         mock_clerk = MagicMock()
         mock_clerk.verify_token.return_value = {
-            "user_id": "user_123",
+            "sub": "user_123",
             "email": "updated@example.com",
             "name": "Updated Name",
         }
