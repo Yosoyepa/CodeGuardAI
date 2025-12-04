@@ -81,13 +81,6 @@ class AnalysisService:
         except Exception as exc:  # pylint: disable=broad-except
             logger.error("Error ejecutando orquestador de analisis: %s", exc)
 
-        # Performance Agent
-        try:
-            performance_agent = PerformanceAgent()
-            findings.extend(performance_agent.analyze(context))
-        except Exception as e:
-            logger.error(f"Error ejecutando PerformanceAgent: {e}")
-
         # 4. Calcular Quality Score (RN8)
         quality_score = self._calculate_quality_score(findings)
 
