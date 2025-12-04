@@ -15,7 +15,6 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    # Cloud Run uses PORT env variable
     PORT=8080
 
 # Set working directory
@@ -28,22 +27,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
+# Create non-root user first (before copying files)
+RUN useradd -m -u 1000 appuser
+
 # Copy requirements first (for layer caching)
-COPY requirements.txt .
+COPY --chown=appuser:appuser requirements.txt .
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
-COPY . .
+COPY --chown=appuser:appuser . .
 
-# Create non-root user (Cloud Run best practice)
-RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
+# Switch to non-root user
 USER appuser
 
 # Cloud Run will set PORT dynamically, expose default
 EXPOSE 8080
 
-# Cloud Run handles health checks via HTTP, no HEALTHCHECK needed
-# Use shell form to allow $PORT expansion at runtime
-CMD uvicorn src.main:app --host 0.0.0.0 --port $PORT
+# Use exec form for proper signal handling
+CMD ["sh", "-c", "exec uvicorn src.main:app --host 0.0.0.0 --port $PORT"]
