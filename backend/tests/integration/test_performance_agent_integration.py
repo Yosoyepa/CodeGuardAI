@@ -1,81 +1,184 @@
-import unittest
+"""
+Integration tests for PerformanceAgent.
+
+Tests PerformanceAgent with realistic inefficient code samples
+and verifies end-to-end behavior.
+"""
+
+import pytest
 import time
+
 from src.agents.performance_agent import PerformanceAgent
 from src.schemas.analysis import AnalysisContext
 from src.schemas.finding import Severity
 
-class TestPerformanceAgentIntegration(unittest.TestCase):
-    """
-    Tests de integración para el PerformanceAgent.
-    Valida el flujo completo de análisis y la detección correcta de múltiples patrones
-    en escenarios realistas.
-    """
-    
-    def setUp(self):
-        """Inicializa el agente antes de cada test."""
-        self.agent = PerformanceAgent()
 
-    def test_analyze_detects_all_smells_and_formats_findings(self):
-        """
-        Valida que el agente detecte múltiples tipos de problemas en un solo archivo
-        y que los hallazgos tengan el formato y severidad correctos.
-        """
-        # Código que contiene intencionalmente 3 problemas de rendimiento
-        code_content = """
-def complex_processing(data):
-    # 1. Bucles anidados (O(n^2)) - CRITICAL
+class TestPerformanceAgentIntegration:
+    """Integration tests for PerformanceAgent with realistic code."""
+
+    @pytest.fixture
+    def agent(self):
+        """Create PerformanceAgent instance."""
+        return PerformanceAgent()
+
+    @pytest.fixture
+    def inefficient_data_processing_code(self):
+        """Realistic inefficient data processing code."""
+        return """
+import socket
+import time
+
+def process_large_dataset(users, transactions):
     results = []
-    for i in data:
-        for j in data:
-            results.append(i + j)
-            
-    # 2. Búsqueda ineficiente en bucle - MEDIUM
-    whitelist = [1, 2, 3]
-    filtered = []
-    for item in data:
-        if item in whitelist:  # Linear search inside loop
-            filtered.append(item)
-            
-    # 3. Fuga de recursos - HIGH
-    f = open("data.txt", "r")
-    content = f.read()
-    # Falta f.close() o uso de 'with'
     
+    # 1. Nested loops (O(n^2)) - Critical
+    # Comparing every user with every transaction
+    for user in users:
+        for tx in transactions:
+            if user['id'] == tx['user_id']:
+                results.append({'user': user, 'tx': tx})
+                
     return results
-"""
-        context = AnalysisContext(
-            code_content=code_content,
-            filename="integration_test_complex.py"
-        )
-        
-        # Ejecutar análisis
-        findings = self.agent.analyze(context)
-        
-        # Verificaciones generales
-        self.assertGreaterEqual(len(findings), 3, "Debería detectar al menos 3 problemas")
-        
-        # 1. Verificar detección de Bucles Anidados
-        nested_loops = next((f for f in findings if f.rule_id == "PERF001_NESTED_LOOPS"), None)
-        self.assertIsNotNone(nested_loops, "No se detectaron bucles anidados")
-        self.assertEqual(nested_loops.severity, Severity.CRITICAL)
-        self.assertIn("complejidad O(n^2)", nested_loops.message)
-        
-        # 2. Verificar detección de Búsqueda Lineal
-        linear_search = next((f for f in findings if f.rule_id == "PERF002_LINEAR_SEARCH"), None)
-        self.assertIsNotNone(linear_search, "No se detectó búsqueda lineal en bucle")
-        self.assertEqual(linear_search.severity, Severity.MEDIUM)
-        
-        # 3. Verificar detección de Fuga de Recursos
-        resource_leak = next((f for f in findings if f.rule_id == "PERF003_RESOURCE_LEAK"), None)
-        self.assertIsNotNone(resource_leak, "No se detectó fuga de recursos (open)")
-        self.assertEqual(resource_leak.severity, Severity.HIGH)
 
-    def test_analyze_with_large_input_performance(self):
-        """
-        Prueba de estrés con un archivo grande pero limpio.
-        Verifica que no haya falsos positivos y que el tiempo de ejecución sea aceptable.
-        """
-        # Generar 500 líneas de código simple sin problemas de rendimiento
+def filter_allowed_items(items, allowed_list):
+    filtered = []
+    # 2. Linear search in loop - Medium
+    for item in items:
+        if item in allowed_list:  # O(n) inside loop -> O(n^2)
+            filtered.append(item)
+    return filtered
+
+def export_logs(logs):
+    # 3. Resource leak (File) - High
+    f = open('export.log', 'w')
+    for log in logs:
+        f.write(str(log) + '\\n')
+    # Missing close()
+    
+def check_server_status(host, port):
+    # 4. Resource leak (Socket) - High
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.connect((host, port))
+    s.send(b'PING')
+    response = s.recv(1024)
+    return response
+
+def update_user_stats(user_ids):
+    # 5. N+1 Query - Critical
+    for uid in user_ids:
+        db.execute("SELECT * FROM stats WHERE user_id = ?", uid)
+"""
+
+    def test_comprehensive_performance_detection(self, agent, inefficient_data_processing_code):
+        """Test detection of all performance issues in realistic code."""
+        context = AnalysisContext(code_content=inefficient_data_processing_code, filename="data_processor.py")
+
+        findings = agent.analyze(context)
+
+        # Should detect multiple issues
+        assert len(findings) >= 5
+
+        # Verify each issue type is detected
+        issue_types = {f.issue_type for f in findings}
+        assert "performance/complexity" in issue_types  # Nested loops
+        assert "performance/inefficient-operation" in issue_types  # Linear search
+        assert "performance/resource-leak" in issue_types  # File and Socket
+        assert "performance/database" in issue_types  # N+1
+
+        # Verify severity distribution
+        critical_count = sum(1 for f in findings if f.is_critical)
+        high_count = sum(1 for f in findings if f.is_high_or_critical)
+
+        assert critical_count >= 2  # Nested loops, N+1
+        assert high_count >= 4  # + File leak, Socket leak
+
+        # Verify findings have suggestions
+        for finding in findings:
+            assert finding.suggestion is not None
+            assert len(finding.suggestion) > 10
+
+        # Verify findings are sorted by severity
+        severities = [f.severity.value for f in findings]
+        expected_order = ["critical", "high", "medium", "low", "info"]
+        
+        # Check if sorted correctly (indices in expected_order should be non-decreasing)
+        indices = [expected_order.index(s) for s in severities]
+        assert indices == sorted(indices)
+
+    def test_optimized_code_no_false_positives(self, agent):
+        """Test that optimized code doesn't generate false positives."""
+        optimized_code = """
+def process_efficiently(users, transactions):
+    # Optimized: Use dictionary for O(1) lookup
+    user_map = {u['id']: u for u in users}
+    results = []
+    
+    for tx in transactions:
+        if tx['user_id'] in user_map:
+            results.append({'user': user_map[tx['user_id']], 'tx': tx})
+            
+    return results
+
+def save_safely(data):
+    # Safe resource usage
+    with open('data.txt', 'w') as f:
+        f.write(data)
+
+def get_stats_batch(user_ids):
+    # Optimized: Batch query
+    placeholders = ','.join(['?'] * len(user_ids))
+    query = f"SELECT * FROM stats WHERE user_id IN ({placeholders})"
+    db.execute(query, user_ids)
+"""
+        context = AnalysisContext(code_content=optimized_code, filename="optimized.py")
+
+        findings = agent.analyze(context)
+
+        # Should have 0 findings for optimized code
+        assert len(findings) == 0
+
+    def test_mixed_performance_file(self, agent):
+        """Test file with mix of efficient and inefficient code."""
+        mixed_code = """
+def good_function():
+    with open('test.txt', 'r') as f:
+        return f.read(1024)  # Safe read with limit
+
+def bad_function(items):
+    # Inefficient insert
+    result = []
+    for item in items:
+        result.insert(0, item)  # O(n) inside loop
+    return result
+"""
+        context = AnalysisContext(code_content=mixed_code, filename="mixed.py")
+
+        findings = agent.analyze(context)
+
+        # Should only detect the inefficient insert
+        assert len(findings) == 1
+        assert findings[0].rule_id == "PERF002_LIST_INSERT"
+        assert findings[0].severity == Severity.HIGH
+
+    def test_analysis_context_metadata_preserved(self, agent):
+        """Test that analysis context metadata is preserved in findings."""
+        code = """
+def leak():
+    f = open('leak.txt')
+"""
+        context = AnalysisContext(code_content=code, filename="leak.py")
+        context.add_metadata("module", "legacy_io")
+
+        findings = agent.analyze(context)
+
+        assert len(findings) >= 1
+        for finding in findings:
+            assert finding.agent_name == "PerformanceAgent"
+            assert finding.detected_at is not None
+
+    def test_large_file_performance(self, agent):
+        """Test PerformanceAgent performance with larger file."""
+        # Generate code with 500 simple functions
         lines = ["def safe_function():"]
         for i in range(500):
             lines.append(f"    x_{i} = {i} * 2")
@@ -83,22 +186,14 @@ def complex_processing(data):
         
         code_content = "\n".join(lines)
         
-        context = AnalysisContext(
-            code_content=code_content,
-            filename="large_clean_file.py"
-        )
+        context = AnalysisContext(code_content=code_content, filename="large_clean.py")
         
         start_time = time.time()
-        findings = self.agent.analyze(context)
+        findings = agent.analyze(context)
         end_time = time.time()
         
         execution_time = end_time - start_time
         
-        # Verificar rendimiento (debería ser muy rápido, < 1 segundo para 500 líneas)
-        self.assertLess(execution_time, 1.0, f"El análisis tomó demasiado tiempo: {execution_time:.4f}s")
-        
-        # Verificar ausencia de falsos positivos
-        self.assertEqual(len(findings), 0, f"Se encontraron hallazgos inesperados en código limpio: {findings}")
-
-if __name__ == '__main__':
-    unittest.main()
+        # Should be fast
+        assert execution_time < 1.0
+        assert len(findings) == 0

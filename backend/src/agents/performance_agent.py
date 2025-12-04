@@ -136,8 +136,14 @@ class PerformanceVisitor(ast.NodeVisitor):
             return
 
         # Detectar 'x in list'
-        for op in node.ops:
+        for op, comparator in zip(node.ops, node.comparators):
             if isinstance(op, (ast.In, ast.NotIn)):
+                # Heurística simple: Si el nombre de la variable sugiere un mapa/set, ignorar
+                if isinstance(comparator, ast.Name):
+                    name = comparator.id.lower()
+                    if any(s in name for s in ["map", "dict", "set", "hash"]):
+                        continue
+                
                 self.findings_data.append({
                     "type": "linear_search",
                     "node": node
@@ -192,6 +198,11 @@ class PerformanceAgent(BaseAgent):
                 finding = self._create_finding(item, context, safe_resource_lines)
                 if finding:
                     findings.append(finding)
+
+            # Ordenar hallazgos por severidad (CRITICAL primero)
+            findings.sort(
+                key=lambda f: (["critical", "high", "medium", "low", "info"].index(f.severity.value))
+            )
 
             self._emit_agent_completed(context, findings)
 
