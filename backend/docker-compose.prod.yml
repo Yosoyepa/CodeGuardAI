@@ -1,0 +1,82 @@
+# ==========================================
+# CodeGuard AI - Production Docker Compose
+# For Google Cloud Run deployment
+# ==========================================
+#
+# NOTE: This file is for LOCAL TESTING of production config.
+# Cloud Run doesn't use docker-compose - it uses the Dockerfile directly.
+# Use this to test the production image locally before deploying.
+#
+# Usage:
+#   docker-compose -f docker-compose.prod.yml up --build
+#
+# ==========================================
+
+version: '3.9'
+
+services:
+  # ==========================================
+  # Backend API (Production-like)
+  # ==========================================
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: codeguard-backend-prod
+    ports:
+      - "8080:8080"
+    environment:
+      # Cloud Run uses PORT env var
+      PORT: "8080"
+      
+      # Application
+      APP_NAME: "CodeGuard AI"
+      DEBUG: "False"
+      ENVIRONMENT: "production"
+      
+      # Database (Cloud SQL or Supabase)
+      DATABASE_URL: "${DATABASE_URL}"
+      
+      # Redis (Cloud Memorystore or external)
+      REDIS_URL: "${REDIS_URL:-}"
+      
+      # Auth (Clerk - Production keys)
+      CLERK_SECRET_KEY: "${CLERK_SECRET_KEY}"
+      CLERK_PUBLISHABLE_KEY: "${CLERK_PUBLISHABLE_KEY}"
+      CLERK_JWKS_URL: "${CLERK_JWKS_URL}"
+      CLERK_JWT_SIGNING_KEY: "${CLERK_JWT_SIGNING_KEY}"
+      
+      # AI - Vertex AI (GCP Service Account)
+      GCP_PROJECT_ID: "${GCP_PROJECT_ID}"
+      GCP_LOCATION: "${GCP_LOCATION:-us-central1}"
+      GOOGLE_APPLICATION_CREDENTIALS: "/secrets/gcp-sa.json"
+      AI_ENABLED: "${AI_ENABLED:-true}"
+      AI_MODEL_DEV: "${AI_MODEL_DEV:-gemini-2.0-flash-lite-001}"
+      AI_MODEL_PROD: "${AI_MODEL_PROD:-gemini-2.5-flash-lite}"
+      AI_RATE_LIMIT_PER_HOUR: "${AI_RATE_LIMIT_PER_HOUR:-10}"
+      
+      # CORS - Vercel domains
+      ALLOWED_ORIGINS: "${ALLOWED_ORIGINS:-https://codeguard-unal.vercel.app,https://*.vercel.app}"
+      
+      # Logging
+      LOG_LEVEL: "INFO"
+      LOG_FORMAT: "json"
+    
+    # For local testing with service account file
+    volumes:
+      - ${GOOGLE_APPLICATION_CREDENTIALS:-./gcp-sa.json}:/secrets/gcp-sa.json:ro
+    
+    networks:
+      - codeguard-prod
+    
+    # Health check endpoint
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+networks:
+  codeguard-prod:
+    driver: bridge

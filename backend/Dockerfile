@@ -1,6 +1,7 @@
 # ==========================================
 # CodeGuard AI - Backend Dockerfile
 # Python 3.11 + FastAPI
+# Optimized for Google Cloud Run
 # ==========================================
 
 FROM python:3.11-slim
@@ -9,21 +10,23 @@ FROM python:3.11-slim
 LABEL maintainer="CodeGuard AI Team <team@codeguard.com>"
 LABEL description="Multi-Agent Code Review System - Backend API"
 
-# Environment variables
+# Environment variables for Python optimization
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    # Cloud Run uses PORT env variable
+    PORT=8080
 
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies (minimal for Cloud Run)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
-    postgresql-client \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
 
 # Copy requirements first (for layer caching)
 COPY requirements.txt .
@@ -34,16 +37,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
-# Create non-root user
+# Create non-root user (Cloud Run best practice)
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
 USER appuser
 
-# Expose port
-EXPOSE 8000
+# Cloud Run will set PORT dynamically, expose default
+EXPOSE 8080
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
-
-# Run application
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Cloud Run handles health checks via HTTP, no HEALTHCHECK needed
+# Use shell form to allow $PORT expansion at runtime
+CMD uvicorn src.main:app --host 0.0.0.0 --port $PORT
