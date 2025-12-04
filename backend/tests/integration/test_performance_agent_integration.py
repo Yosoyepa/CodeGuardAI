@@ -67,6 +67,13 @@ def update_user_stats(user_ids):
     # 5. N+1 Query - Critical
     for uid in user_ids:
         db.execute("SELECT * FROM stats WHERE user_id = ?", uid)
+
+def terrible_complexity(data):
+    # 6. Triple nested loop (O(n^3)) - Critical
+    for i in data:
+        for j in data:
+            for k in data:
+                print(i, j, k)
 """
 
     def test_comprehensive_performance_detection(self, agent, inefficient_data_processing_code):
@@ -76,7 +83,7 @@ def update_user_stats(user_ids):
         findings = agent.analyze(context)
 
         # Should detect multiple issues
-        assert len(findings) >= 5
+        assert len(findings) >= 6
 
         # Verify each issue type is detected
         issue_types = {f.issue_type for f in findings}
@@ -89,8 +96,8 @@ def update_user_stats(user_ids):
         critical_count = sum(1 for f in findings if f.is_critical)
         high_count = sum(1 for f in findings if f.is_high_or_critical)
 
-        assert critical_count >= 2  # Nested loops, N+1
-        assert high_count >= 4  # + File leak, Socket leak
+        assert critical_count >= 2  # Triple nested loops, N+1
+        assert high_count >= 5  # + Double nested loops, File leak, Socket leak
 
         # Verify findings have suggestions
         for finding in findings:

@@ -236,10 +236,13 @@ class PerformanceAgent(BaseAgent):
         issue_type = item["type"]
         
         if issue_type == "complexity":
+            depth = item['depth']
+            severity = Severity.CRITICAL if depth >= 3 else Severity.HIGH
+            
             return Finding(
-                severity=Severity.CRITICAL,
+                severity=severity,
                 issue_type="performance/complexity",
-                message=f"Posible complejidad O(n^{item['depth']}) detectada por bucles anidados.",
+                message=f"Posible complejidad O(n^{depth}) detectada por bucles anidados.",
                 line_number=node.lineno,
                 code_snippet=self._get_snippet(context, node.lineno),
                 suggestion="Intenta aplanar los bucles o mover el bucle interno a una función separada optimizada.",

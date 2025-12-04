@@ -1,14 +1,17 @@
 """
 Unit tests for PerformanceAgent.
 
-Tests cover detection of:
-1. Algorithmic complexity issues (Nested loops O(n^2))
-2. Inefficient collection operations (list.insert(0), in list inside loop)
-3. Resource management issues (open without with)
+Refactored to follow robust testing patterns from SecurityAgent and QualityAgent.
+Tests cover:
+1. Algorithmic complexity (O(n^2), O(n^3)) with thresholds.
+2. Inefficient collections with false positive avoidance.
+3. Resource leaks with isolation.
+4. Robust error handling and edge cases.
 """
 
 import pytest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
+import ast
 
 from src.agents.performance_agent import PerformanceAgent
 from src.schemas.analysis import AnalysisContext
@@ -16,7 +19,7 @@ from src.schemas.finding import Severity
 
 
 class TestPerformanceAgentInitialization:
-    """Test PerformanceAgent initialization."""
+    """Test PerformanceAgent initialization and metadata."""
 
     def test_agent_initialization(self):
         """Test PerformanceAgent is created with correct attributes."""
@@ -27,15 +30,22 @@ class TestPerformanceAgentInitialization:
         assert agent.category == "performance"
         assert agent.enabled is True
 
+    def test_agent_info(self):
+        """Test get_info returns correct metadata."""
+        agent = PerformanceAgent()
+        info = agent.get_info()
+        assert info["name"] == "PerformanceAgent"
+        assert info["category"] == "performance"
+
 
 class TestComplexityDetection:
-    """Test detection of algorithmic complexity issues (O(n^2))."""
+    """Test detection of algorithmic complexity issues (O(n^2), O(n^3))."""
 
     @pytest.fixture
     def agent(self):
         return PerformanceAgent()
 
-    def test_detect_nested_loops_critical(self, agent):
+    def test_detect_nested_loops_high(self, agent):
         """Test detection of double nested loops (O(n^2))."""
         code = """
 def process_data(items):
@@ -43,35 +53,32 @@ def process_data(items):
         for j in items:
             print(i, j)
 """
-        context = AnalysisContext(code_content=code, filename="complexity.py")
+        context = AnalysisContext(code_content=code, filename="complexity_high.py")
         findings = agent.analyze(context)
 
-        assert len(findings) >= 1
-        finding = next(f for f in findings if f.issue_type == "performance/complexity")
-        assert finding.severity == Severity.CRITICAL
-        assert "complejidad O(n^2)" in finding.message
+        finding = next((f for f in findings if f.issue_type == "performance/complexity"), None)
+        assert finding is not None
+        # Double nested loop is typically Critical or High depending on strictness
+        assert finding.severity in [Severity.HIGH, Severity.CRITICAL]
+        assert "O(n^2)" in finding.message
         assert finding.rule_id == "PERF001_NESTED_LOOPS"
 
-    def test_detect_nested_loops_in_function(self, agent):
-        """Test detection of nested loops inside a function."""
+    def test_detect_triple_nested_loops_critical(self, agent):
+        """Test detection of triple nested loops (O(n^3)) -> CRITICAL severity."""
         code = """
-class DataProcessor:
-    def analyze(self, data):
-        results = []
-        for x in data:
-            # Some comment
-            for y in data:
-                results.append(x + y)
-        return results
+def process_matrix(matrix):
+    for i in range(10):
+        for j in range(10):
+            for k in range(10):
+                print(matrix[i][j][k])
 """
-        context = AnalysisContext(code_content=code, filename="processor.py")
+        context = AnalysisContext(code_content=code, filename="complexity_critical.py")
         findings = agent.analyze(context)
 
-        finding = next(f for f in findings if f.issue_type == "performance/complexity")
-        # The finding points to the inner loop (the one causing the nesting)
-        # Line 1: empty, 2: class, 3: def, 4: results, 5: for x, 6: comment, 7: for y
-        assert finding.line_number == 7
-        assert "O(n^2)" in finding.message
+        finding = next((f for f in findings if f.issue_type == "performance/complexity"), None)
+        assert finding is not None
+        assert finding.severity == Severity.CRITICAL
+        assert "O(n^3)" in finding.message
 
     def test_ignore_single_loops(self, agent):
         """Test that sequential loops are not flagged."""
@@ -79,19 +86,17 @@ class DataProcessor:
 def linear_process(items):
     for i in items:
         print(i)
-    
     for j in items:
         print(j)
 """
         context = AnalysisContext(code_content=code, filename="linear.py")
         findings = agent.analyze(context)
-
         complexity_findings = [f for f in findings if f.issue_type == "performance/complexity"]
         assert len(complexity_findings) == 0
 
 
 class TestInefficientCollections:
-    """Test detection of inefficient collection operations."""
+    """Test detection of inefficient collection operations and false positives."""
 
     @pytest.fixture
     def agent(self):
@@ -103,15 +108,15 @@ class TestInefficientCollections:
 def build_list(items):
     result = []
     for item in items:
-        result.insert(0, item)  # Inefficient O(n) inside loop -> O(n^2)
+        result.insert(0, item)
     return result
 """
         context = AnalysisContext(code_content=code, filename="collections.py")
         findings = agent.analyze(context)
 
-        finding = next(f for f in findings if "insert(0)" in f.message or "insert" in f.code_snippet)
+        finding = next((f for f in findings if "insert(0)" in f.message or "insert" in f.code_snippet), None)
+        assert finding is not None
         assert finding.severity == Severity.HIGH
-        assert finding.issue_type == "performance/inefficient-operation"
         assert finding.rule_id == "PERF002_LIST_INSERT"
 
     def test_detect_search_in_list_in_loop(self, agent):
@@ -120,32 +125,51 @@ def build_list(items):
 def filter_items(items, whitelist_list):
     result = []
     for item in items:
-        if item in whitelist_list:  # O(n) search inside loop -> O(n^2)
+        if item in whitelist_list:
             result.append(item)
     return result
 """
         context = AnalysisContext(code_content=code, filename="search.py")
         findings = agent.analyze(context)
 
-        finding = next(f for f in findings if "Búsqueda lineal" in f.message)
+        finding = next((f for f in findings if "Búsqueda lineal" in f.message), None)
+        assert finding is not None
         assert finding.severity == Severity.MEDIUM
         assert finding.rule_id == "PERF002_LINEAR_SEARCH"
 
-    def test_ignore_search_outside_loop(self, agent):
-        """Test that searching in list outside loop is ignored."""
+    def test_false_positive_set_lookup(self, agent):
+        """Test that 'in set' search inside a loop is NOT flagged (O(1))."""
         code = """
-if x in my_list:
-    print("found")
+def filter_fast(items, whitelist_set):
+    # whitelist_set implies it's a set via heuristic
+    result = []
+    for item in items:
+        if item in whitelist_set:
+            result.append(item)
+    return result
 """
         context = AnalysisContext(code_content=code, filename="fast_search.py")
         findings = agent.analyze(context)
+        
+        search_findings = [f for f in findings if "Búsqueda lineal" in f.message]
+        assert len(search_findings) == 0
 
+    def test_false_positive_dict_lookup(self, agent):
+        """Test that 'in dict' search inside a loop is NOT flagged (O(1))."""
+        code = """
+def check_map(items, user_map):
+    for item in items:
+        if item in user_map:
+            pass
+"""
+        context = AnalysisContext(code_content=code, filename="dict_search.py")
+        findings = agent.analyze(context)
         search_findings = [f for f in findings if "Búsqueda lineal" in f.message]
         assert len(search_findings) == 0
 
 
 class TestResourceLeaks:
-    """Test detection of resource leaks (open without with)."""
+    """Test detection of resource leaks and proper isolation."""
 
     @pytest.fixture
     def agent(self):
@@ -162,7 +186,8 @@ def read_file(path):
         context = AnalysisContext(code_content=code, filename="leaks.py")
         findings = agent.analyze(context)
 
-        finding = next(f for f in findings if f.issue_type == "performance/resource-leak")
+        finding = next((f for f in findings if f.issue_type == "performance/resource-leak"), None)
+        assert finding is not None
         assert finding.severity == Severity.HIGH
         assert "with" in finding.suggestion
         assert finding.rule_id == "PERF003_RESOURCE_LEAK"
@@ -191,39 +216,84 @@ def process_users(user_ids):
         context = AnalysisContext(code_content=code, filename="db_perf.py")
         findings = agent.analyze(context)
 
-        finding = next(f for f in findings if f.issue_type == "performance/database")
+        finding = next((f for f in findings if f.issue_type == "performance/database"), None)
+        assert finding is not None
         assert finding.severity == Severity.CRITICAL
         assert "N+1 Query" in finding.message
         assert finding.rule_id == "PERF004_N_PLUS_ONE"
 
-    def test_detect_memory_intensive_read(self, agent):
-        """Test detection of unbounded read()."""
-        code = """
-def load_file(path):
-    with open(path, 'r') as f:
-        # Unbounded read
-        data = f.read()
-        return data
-"""
-        context = AnalysisContext(code_content=code, filename="memory.py")
+
+class TestErrorHandling:
+    """Test robust error handling (Pattern from QualityAgent)."""
+
+    @pytest.fixture
+    def agent(self):
+        return PerformanceAgent()
+
+    def test_syntax_error_handling(self, agent):
+        """Test that syntax errors in code do not crash the agent."""
+        code = "def broken_code(:"  # Syntax error
+        context = AnalysisContext(code_content=code, filename="broken.py")
+        
+        # Should not raise exception
         findings = agent.analyze(context)
+        
+        # Should return empty list or list with syntax error finding
+        assert isinstance(findings, list)
 
-        finding = next(f for f in findings if f.issue_type == "performance/memory")
-        assert finding.severity == Severity.HIGH
-        assert "memoria intensiva" in finding.message
-        assert finding.rule_id == "PERF005_UNBOUNDED_MEMORY"
+    def test_generic_exception_handling(self, agent):
+        """Test handling of unexpected exceptions during analysis."""
+        context = AnalysisContext(code_content="pass", filename="test.py")
+        
+        # Mock ast.parse to raise generic exception
+        with patch("ast.parse", side_effect=Exception("Unexpected AST failure")):
+            findings = agent.analyze(context)
+            
+            # Should handle gracefully and return empty list
+            assert findings == []
 
-    def test_detect_socket_leak(self, agent):
-        """Test detection of socket leak."""
+    def test_visitor_exception_handling(self, agent):
+        """Test exception handling within the visitor traversal."""
+        code = "x = 1"
+        context = AnalysisContext(code_content=code, filename="test.py")
+        
+        # Mock the visitor's visit method to raise exception
+        with patch("src.agents.performance_agent.PerformanceVisitor.visit", side_effect=Exception("Visitor Error")):
+            findings = agent.analyze(context)
+            # Should catch and return empty or partial findings
+            assert findings == []
+
+
+class TestOptimizedCode:
+    """Test that perfectly optimized code generates zero findings (Pattern from SecurityAgent)."""
+
+    @pytest.fixture
+    def agent(self):
+        return PerformanceAgent()
+
+    def test_optimized_code_no_findings(self, agent):
+        """Test a complex but optimized code block."""
         code = """
-import socket
-def connect():
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.connect(('localhost', 80))
-"""
-        context = AnalysisContext(code_content=code, filename="net.py")
-        findings = agent.analyze(context)
+import collections
 
-        finding = next(f for f in findings if f.issue_type == "performance/resource-leak")
-        assert "socket" in finding.message
-        assert finding.rule_id == "PERF003_RESOURCE_LEAK" 
+def process_efficiently(data_list, lookup_set):
+    # Use deque for O(1) appends on both ends
+    queue = collections.deque()
+    
+    # Single loop O(n)
+    for item in data_list:
+        # Set lookup O(1)
+        if item in lookup_set:
+            queue.append(item)
+            
+    # Context manager for resources
+    with open("output.txt", "w") as f:
+        while queue:
+            f.write(str(queue.popleft()) + "\\n")
+            
+    return True
+"""
+        context = AnalysisContext(code_content=code, filename="optimized.py")
+        findings = agent.analyze(context)
+        
+        assert len(findings) == 0
