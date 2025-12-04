@@ -10,6 +10,7 @@ from fastapi import HTTPException, UploadFile
 
 from src.agents.quality_agent import QualityAgent
 from src.agents.security_agent import SecurityAgent
+from src.agents.style_agent import StyleAgent
 from src.core.events.analysis_events import AnalysisEventType
 from src.core.events.event_bus import EventBus
 from src.models.enums.review_status import ReviewStatus
@@ -74,14 +75,24 @@ class AnalysisService:
         self.event_bus.publish(AnalysisEventType.ANALYSIS_STARTED, {"id": str(analysis_id)})
 
         # 3. Ejecutar Agentes (SecurityAgent y QualityAgent)
+        # 3. Ejecutar agentes (SecurityAgent + StyleAgent)
         findings: List[Finding] = []
 
         # Security Agent
         try:
             agent = SecurityAgent()
             findings.extend(agent.analyze(context))
+            security_agent = SecurityAgent()
+            style_agent = StyleAgent()
+
+            security_findings = security_agent.analyze(context)
+            style_findings = style_agent.analyze(context)
+
+            findings = security_findings + style_findings
+            # findings = style_findings
+
         except Exception as e:
-            logger.error(f"Error ejecutando SecurityAgent: {e}")
+            logger.error(f"Error ejecutando agentes de analisis: {e}")
 
         # Quality Agent
         try:

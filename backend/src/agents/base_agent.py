@@ -97,8 +97,8 @@ class BaseAgent(ABC):
         """Emite evento AGENT_STARTED."""
         if self.event_bus:
             self.event_bus.publish(
+                "AGENT_STARTED",
                 {
-                    "type": "AGENT_STARTED",
                     "agent_name": self.name,
                     "analysis_id": str(context.analysis_id),
                     "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -110,8 +110,8 @@ class BaseAgent(ABC):
         """Emite evento AGENT_COMPLETED."""
         if self.event_bus:
             self.event_bus.publish(
+                "AGENT_COMPLETED",
                 {
-                    "type": "AGENT_COMPLETED",
                     "agent_name": self.name,
                     "analysis_id": str(context.analysis_id),
                     "findings_count": len(findings),
@@ -124,8 +124,8 @@ class BaseAgent(ABC):
         """Emite evento AGENT_FAILED."""
         if self.event_bus:
             self.event_bus.publish(
+                "AGENT_FAILED",
                 {
-                    "type": "AGENT_FAILED",
                     "agent_name": self.name,
                     "analysis_id": str(context.analysis_id),
                     "error": str(error),
