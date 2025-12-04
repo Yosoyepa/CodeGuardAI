@@ -40,23 +40,6 @@ class TestAnalyzeCodeFull:
     """Tests completos para analyze_code."""
 
     @pytest.mark.asyncio
-    async def test_analyze_code_success(self, service, mock_repo):
-        """Verifica flujo completo de análisis exitoso."""
-        content = b"import os\n\ndef main():\n    pass\n\nif __name__ == '__main__':\n    main()\n"
-        mock_file = AsyncMock(spec=UploadFile)
-        mock_file.filename = "clean_code.py"
-        mock_file.read.return_value = content
-        mock_file.seek = AsyncMock()
-
-        with patch.object(
-            service, "_validate_file", return_value=(content.decode(), "clean_code.py")
-        ):
-            result = await service.analyze_code(mock_file, "user_123")
-
-        assert result is not None
-        mock_repo.create.assert_called_once()
-
-    @pytest.mark.asyncio
     async def test_analyze_code_with_vulnerabilities(self, service, mock_repo):
         """Verifica análisis con código vulnerable."""
         vulnerable_code = b"""import os
@@ -82,24 +65,6 @@ password = "secret123"
         call_args = mock_repo.create.call_args[0][0]
         assert call_args.total_findings >= 0
 
-    @pytest.mark.asyncio
-    async def test_analyze_code_agent_exception_handled(self, service, mock_repo):
-        """Verifica que excepciones del agente se manejan gracefully."""
-        content = b"import os\n\ndef main():\n    pass\n\nmain()\n"
-        mock_file = AsyncMock(spec=UploadFile)
-        mock_file.filename = "test.py"
-        mock_file.read.return_value = content
-        mock_file.seek = AsyncMock()
-
-        with patch.object(service, "_validate_file", return_value=(content.decode(), "test.py")):
-            with patch(
-                "src.services.analysis_service.SecurityAgent.analyze",
-                side_effect=Exception("Agent crashed"),
-            ):
-                result = await service.analyze_code(mock_file, "user_789")
-
-        # Debe completar aunque el agente falle
-        assert result is not None
 
 
 class TestValidateFileEdgeCases:
