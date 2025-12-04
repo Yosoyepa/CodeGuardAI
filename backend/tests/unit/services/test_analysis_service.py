@@ -187,13 +187,16 @@ async def test_analyze_code_success(service, mock_repo):
     mock_file.filename = "valid.py"
     mock_file.read.return_value = content
 
-    # Mock agents
-    with patch("src.services.analysis_service.SecurityAgent") as MockSecurityAgent, patch(
-        "src.services.analysis_service.QualityAgent"
-    ) as MockQualityAgent:
+    # Mock all three agents used in analysis_service
+    with patch("src.services.analysis_service.SecurityAgent") as MockSecurityAgent, \
+         patch("src.services.analysis_service.StyleAgent") as MockStyleAgent, \
+         patch("src.services.analysis_service.QualityAgent") as MockQualityAgent:
 
         mock_sec_instance = MockSecurityAgent.return_value
         mock_sec_instance.analyze.return_value = []
+
+        mock_style_instance = MockStyleAgent.return_value
+        mock_style_instance.analyze.return_value = []
 
         mock_qual_instance = MockQualityAgent.return_value
         mock_qual_instance.analyze.return_value = []
@@ -205,6 +208,7 @@ async def test_analyze_code_success(service, mock_repo):
         assert result.status == ReviewStatus.COMPLETED
         mock_repo.create.assert_called_once()
         mock_sec_instance.analyze.assert_called_once()
+        mock_style_instance.analyze.assert_called_once()
         mock_qual_instance.analyze.assert_called_once()
 
 
@@ -216,13 +220,16 @@ async def test_analyze_code_agent_failure(service, mock_repo):
     mock_file.filename = "valid.py"
     mock_file.read.return_value = content
 
-    with patch("src.services.analysis_service.SecurityAgent") as MockSecurityAgent, patch(
-        "src.services.analysis_service.QualityAgent"
-    ) as MockQualityAgent:
+    with patch("src.services.analysis_service.SecurityAgent") as MockSecurityAgent, \
+         patch("src.services.analysis_service.StyleAgent") as MockStyleAgent, \
+         patch("src.services.analysis_service.QualityAgent") as MockQualityAgent:
 
-        # Security agent fails
+        # Security agent fails (along with StyleAgent in same try block)
         mock_sec_instance = MockSecurityAgent.return_value
         mock_sec_instance.analyze.side_effect = Exception("Security Agent Failed")
+
+        mock_style_instance = MockStyleAgent.return_value
+        mock_style_instance.analyze.return_value = []
 
         # Quality agent succeeds
         mock_qual_instance = MockQualityAgent.return_value

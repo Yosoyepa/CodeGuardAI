@@ -102,7 +102,7 @@ class BaseAgent(ABC):
                     "agent_name": self.name,
                     "analysis_id": str(context.analysis_id),
                     "timestamp": datetime.now(timezone.utc).isoformat(),
-                }
+                },
             )
         self.log_info("Analysis started")
 
@@ -116,7 +116,7 @@ class BaseAgent(ABC):
                     "analysis_id": str(context.analysis_id),
                     "findings_count": len(findings),
                     "timestamp": datetime.now(timezone.utc).isoformat(),
-                }
+                },
             )
         self.log_info(f"Analysis completed - {len(findings)} findings")
 
@@ -130,7 +130,7 @@ class BaseAgent(ABC):
                     "analysis_id": str(context.analysis_id),
                     "error": str(error),
                     "timestamp": datetime.now(timezone.utc).isoformat(),
-                }
+                },
             )
         self.log_error(f"Analysis failed: {error}")
 

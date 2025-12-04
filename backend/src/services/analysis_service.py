@@ -74,14 +74,11 @@ class AnalysisService:
         # Notificar inicio usando el Enum
         self.event_bus.publish(AnalysisEventType.ANALYSIS_STARTED, {"id": str(analysis_id)})
 
-        # 3. Ejecutar Agentes (SecurityAgent y QualityAgent)
-        # 3. Ejecutar agentes (SecurityAgent + StyleAgent)
+        # 3. Ejecutar Agentes (SecurityAgent, StyleAgent y QualityAgent)
         findings: List[Finding] = []
 
-        # Security Agent
+        # Security Agent + Style Agent
         try:
-            agent = SecurityAgent()
-            findings.extend(agent.analyze(context))
             security_agent = SecurityAgent()
             style_agent = StyleAgent()
 
@@ -89,7 +86,6 @@ class AnalysisService:
             style_findings = style_agent.analyze(context)
 
             findings = security_findings + style_findings
-            # findings = style_findings
 
         except Exception as e:
             logger.error(f"Error ejecutando agentes de analisis: {e}")
