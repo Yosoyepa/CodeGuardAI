@@ -35,7 +35,7 @@ class TestGetDb:
         # Act
         generator = get_db()
         session = next(generator)
-        
+
         # Simular fin del request
         try:
             next(generator)
@@ -56,7 +56,7 @@ class TestGetDb:
         # Act
         generator = get_db()
         session = next(generator)
-        
+
         # Simular excepción y cierre
         try:
             generator.throw(Exception("Test exception"))
@@ -76,20 +76,20 @@ class TestGetDb:
 
         # Simular uso típico con Depends
         db_generator = get_db()
-        
+
         # Obtener sesión
         db = next(db_generator)
         assert db is mock_session
-        
+
         # Usar la sesión
         db.query.return_value = "result"
         result = db.query()
         assert result == "result"
-        
+
         # Cerrar (simular fin de request)
         try:
             next(db_generator)
         except StopIteration:
             pass
-        
+
         mock_session.close.assert_called_once()

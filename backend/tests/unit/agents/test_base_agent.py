@@ -163,9 +163,11 @@ class TestBaseAgentEvents:
         agent._emit_agent_started(context)
 
         event_bus_mock.publish.assert_called_once()
-        call_args = event_bus_mock.publish.call_args[0][0]
-        assert call_args["type"] == "AGENT_STARTED"
-        assert call_args["agent_name"] == "DummyAgent"
+        # publish recibe (event_type, data)
+        event_type = event_bus_mock.publish.call_args[0][0]
+        data = event_bus_mock.publish.call_args[0][1]
+        assert event_type == "AGENT_STARTED"
+        assert data["agent_name"] == "DummyAgent"
 
     def test_emit_agent_completed(self):
         """Test que _emit_agent_completed publica evento."""
@@ -187,9 +189,11 @@ class TestBaseAgentEvents:
         agent._emit_agent_completed(context, findings)
 
         event_bus_mock.publish.assert_called_once()
-        call_args = event_bus_mock.publish.call_args[0][0]
-        assert call_args["type"] == "AGENT_COMPLETED"
-        assert call_args["findings_count"] == 1
+        # publish recibe (event_type, data)
+        event_type = event_bus_mock.publish.call_args[0][0]
+        data = event_bus_mock.publish.call_args[0][1]
+        assert event_type == "AGENT_COMPLETED"
+        assert data["findings_count"] == 1
 
     def test_emit_agent_failed(self):
         """Test que _emit_agent_failed publica evento."""
@@ -202,9 +206,11 @@ class TestBaseAgentEvents:
         agent._emit_agent_failed(context, error)
 
         event_bus_mock.publish.assert_called_once()
-        payload = event_bus_mock.publish.call_args[0][0]
-        assert payload["type"] == "AGENT_FAILED"
-        assert "boom" in payload["error"]
+        # publish recibe (event_type, data)
+        event_type = event_bus_mock.publish.call_args[0][0]
+        data = event_bus_mock.publish.call_args[0][1]
+        assert event_type == "AGENT_FAILED"
+        assert "boom" in data["error"]
 
     def test_no_events_when_event_bus_none(self):
         """Test que no falla si event_bus es None."""

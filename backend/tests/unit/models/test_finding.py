@@ -101,7 +101,7 @@ class TestAgentFindingEntityToDict:
         finding_id = uuid.uuid4()
         review_id = uuid.uuid4()
         created = datetime(2025, 12, 1, 10, 0, 0)
-        
+
         finding = AgentFindingEntity(
             id=finding_id,
             review_id=review_id,
