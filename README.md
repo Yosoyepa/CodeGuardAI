@@ -644,7 +644,7 @@ git push -u origin feature/CGAI-XX-descripcion-corta
 | Jorge Andrés Mora León | [@aiizedev](https://github.com/aiizedev) | DevOps / Backend |
 | John Alejandro Pastor Sandoval | [@jpastor1649](https://github.com/jpastor1649) | Backend |
 | David Fernando Benjumea Mora | [@DavidFBM](https://github.com/DavidFBM) | Backend |
-| Juan Sebastián Muñoz Lemus | [@usuario4](https://github.com/usuario4) | Frontend |
+| Juan Sebastián Muñoz Lemus | [@jumunozle](https://github.com/jumunozle) | Frontend |
 | Juan Carlos Andrade Unigarro | [@Yosoyepa](https://github.com/Yosoyepa) | DevOps |
 
 ### Profesores
@@ -697,4 +697,5 @@ Este proyecto está licenciado bajo la **Licencia MIT**. Ver [LICENSE](LICENSE) 
   <p>Universidad Nacional de Colombia - Ingeniería de Software II 2025-II</p>
   <p>Última actualización: <strong>6 de Noviembre de 2025</strong></p>
 </div>
+
 
