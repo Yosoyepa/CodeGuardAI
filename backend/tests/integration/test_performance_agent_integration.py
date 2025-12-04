@@ -5,8 +5,9 @@ Tests PerformanceAgent with realistic inefficient code samples
 and verifies end-to-end behavior.
 """
 
-import pytest
 import time
+
+import pytest
 
 from src.agents.performance_agent import PerformanceAgent
 from src.schemas.analysis import AnalysisContext
@@ -78,7 +79,9 @@ def terrible_complexity(data):
 
     def test_comprehensive_performance_detection(self, agent, inefficient_data_processing_code):
         """Test detection of all performance issues in realistic code."""
-        context = AnalysisContext(code_content=inefficient_data_processing_code, filename="data_processor.py")
+        context = AnalysisContext(
+            code_content=inefficient_data_processing_code, filename="data_processor.py"
+        )
 
         findings = agent.analyze(context)
 
@@ -106,8 +109,8 @@ def terrible_complexity(data):
 
         # Verify findings are sorted by severity
         severities = [f.severity.value for f in findings]
-        expected_order = ["critical", "high", "medium", "low", "info"]
-        
+        expected_order = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]
+
         # Check if sorted correctly (indices in expected_order should be non-decreasing)
         indices = [expected_order.index(s) for s in severities]
         assert indices == sorted(indices)
@@ -190,17 +193,17 @@ def leak():
         for i in range(500):
             lines.append(f"    x_{i} = {i} * 2")
         lines.append("    return x_499")
-        
+
         code_content = "\n".join(lines)
-        
+
         context = AnalysisContext(code_content=code_content, filename="large_clean.py")
-        
+
         start_time = time.time()
         findings = agent.analyze(context)
         end_time = time.time()
-        
+
         execution_time = end_time - start_time
-        
+
         # Should be fast
         assert execution_time < 1.0
         assert len(findings) == 0

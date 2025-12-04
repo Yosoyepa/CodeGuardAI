@@ -9,9 +9,10 @@ Tests cover:
 4. Robust error handling and edge cases.
 """
 
-import pytest
-from unittest.mock import MagicMock, patch
 import ast
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from src.agents.performance_agent import PerformanceAgent
 from src.schemas.analysis import AnalysisContext
@@ -114,7 +115,9 @@ def build_list(items):
         context = AnalysisContext(code_content=code, filename="collections.py")
         findings = agent.analyze(context)
 
-        finding = next((f for f in findings if "insert(0)" in f.message or "insert" in f.code_snippet), None)
+        finding = next(
+            (f for f in findings if "insert(0)" in f.message or "insert" in f.code_snippet), None
+        )
         assert finding is not None
         assert finding.severity == Severity.HIGH
         assert finding.rule_id == "PERF002_LIST_INSERT"
@@ -150,7 +153,7 @@ def filter_fast(items, whitelist_set):
 """
         context = AnalysisContext(code_content=code, filename="fast_search.py")
         findings = agent.analyze(context)
-        
+
         search_findings = [f for f in findings if "Búsqueda lineal" in f.message]
         assert len(search_findings) == 0
 
@@ -234,21 +237,21 @@ class TestErrorHandling:
         """Test that syntax errors in code do not crash the agent."""
         code = "def broken_code(:"  # Syntax error
         context = AnalysisContext(code_content=code, filename="broken.py")
-        
+
         # Should not raise exception
         findings = agent.analyze(context)
-        
+
         # Should return empty list or list with syntax error finding
         assert isinstance(findings, list)
 
     def test_generic_exception_handling(self, agent):
         """Test handling of unexpected exceptions during analysis."""
         context = AnalysisContext(code_content="pass", filename="test.py")
-        
+
         # Mock ast.parse to raise generic exception
         with patch("ast.parse", side_effect=Exception("Unexpected AST failure")):
             findings = agent.analyze(context)
-            
+
             # Should handle gracefully and return empty list
             assert findings == []
 
@@ -256,9 +259,12 @@ class TestErrorHandling:
         """Test exception handling within the visitor traversal."""
         code = "x = 1"
         context = AnalysisContext(code_content=code, filename="test.py")
-        
+
         # Mock the visitor's visit method to raise exception
-        with patch("src.agents.performance_agent.PerformanceVisitor.visit", side_effect=Exception("Visitor Error")):
+        with patch(
+            "src.agents.performance_agent.PerformanceVisitor.visit",
+            side_effect=Exception("Visitor Error"),
+        ):
             findings = agent.analyze(context)
             # Should catch and return empty or partial findings
             assert findings == []
@@ -295,5 +301,5 @@ def process_efficiently(data_list, lookup_set):
 """
         context = AnalysisContext(code_content=code, filename="optimized.py")
         findings = agent.analyze(context)
-        
+
         assert len(findings) == 0

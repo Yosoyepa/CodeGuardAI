@@ -1,6 +1,7 @@
 import os
 import socket
 
+
 def terrible_function():
     # Performance: Triple nested loop (O(n^3)) -> CRITICAL
     for i in range(10):
@@ -22,6 +23,7 @@ def terrible_function():
     for item in items:
         # Simulating DB call inside loop
         execute("SELECT * FROM table WHERE id = " + str(item))
+
 
 def execute(query):
     pass
