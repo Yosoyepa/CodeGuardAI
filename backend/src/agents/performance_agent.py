@@ -6,7 +6,7 @@ que pueden causar problemas de rendimiento, complejidad temporal excesiva o fuga
 """
 
 import ast
-from typing import List, Set, Tuple
+from typing import List, Set
 
 from src.agents.base_agent import BaseAgent
 from src.schemas.analysis import AnalysisContext
@@ -21,7 +21,7 @@ class PerformanceVisitor(ast.NodeVisitor):
 
     # Métodos sospechosos de ser consultas a BD u operaciones costosas de I/O
     DB_METHODS = {"execute", "query", "select", "commit", "flush", "rollback", "fetch", "get"}
-    
+
     # Métodos que pueden cargar grandes volúmenes de datos en memoria
     MEMORY_INTENSIVE_METHODS = {"read", "readlines", "fetchall"}
 
@@ -43,21 +43,19 @@ class PerformanceVisitor(ast.NodeVisitor):
         self.loop_depth += 1
         prev_in_loop = self.in_loop
         self.in_loop = True
-        
+
         # Continuar visitando los hijos
         self.generic_visit(node)
-        
+
         self.in_loop = prev_in_loop
         self.loop_depth -= 1
 
     def _check_nested_loop(self, node):
         """Detecta anidamiento excesivo de bucles (O(n^2) o peor)."""
         if self.loop_depth >= 1:
-            self.findings_data.append({
-                "type": "complexity",
-                "node": node,
-                "depth": self.loop_depth + 1
-            })
+            self.findings_data.append(
+                {"type": "complexity", "node": node, "depth": self.loop_depth + 1}
+            )
 
     def visit_Call(self, node: ast.Call):
         """Detecta llamadas a funciones ineficientes o mal gestionadas."""
@@ -71,19 +69,11 @@ class PerformanceVisitor(ast.NodeVisitor):
         """Detecta uso de open() o socket() fuera de un contexto 'with'."""
         # Detectar open()
         if isinstance(node.func, ast.Name) and node.func.id == "open":
-            self.findings_data.append({
-                "type": "resource_leak",
-                "resource": "file",
-                "node": node
-            })
+            self.findings_data.append({"type": "resource_leak", "resource": "file", "node": node})
         # Detectar socket.socket()
         elif isinstance(node.func, ast.Attribute) and node.func.attr == "socket":
             # Asumimos que viene de módulo socket, aunque es heurístico
-            self.findings_data.append({
-                "type": "resource_leak",
-                "resource": "socket",
-                "node": node
-            })
+            self.findings_data.append({"type": "resource_leak", "resource": "socket", "node": node})
 
     def _check_inefficient_collection_ops(self, node: ast.Call):
         """Detecta operaciones O(n) dentro de bucles."""
@@ -93,10 +83,7 @@ class PerformanceVisitor(ast.NodeVisitor):
         # Detectar list.insert(0, ...)
         if isinstance(node.func, ast.Attribute) and node.func.attr == "insert":
             if node.args and isinstance(node.args[0], ast.Constant) and node.args[0].value == 0:
-                self.findings_data.append({
-                    "type": "inefficient_insert",
-                    "node": node
-                })
+                self.findings_data.append({"type": "inefficient_insert", "node": node})
 
     def _check_n_plus_one_query(self, node: ast.Call):
         """Detecta el problema N+1: Consultas a BD dentro de bucles."""
@@ -106,28 +93,22 @@ class PerformanceVisitor(ast.NodeVisitor):
         method_name = ""
         if isinstance(node.func, ast.Attribute):
             method_name = node.func.attr
-        
+
         if method_name in self.DB_METHODS:
-            self.findings_data.append({
-                "type": "n_plus_one",
-                "method": method_name,
-                "node": node
-            })
+            self.findings_data.append({"type": "n_plus_one", "method": method_name, "node": node})
 
     def _check_memory_intensive(self, node: ast.Call):
         """Detecta operaciones que cargan datos sin límites en memoria."""
         method_name = ""
         if isinstance(node.func, ast.Attribute):
             method_name = node.func.attr
-        
+
         if method_name in self.MEMORY_INTENSIVE_METHODS:
             # Si se llama sin argumentos (ej: f.read()), lee todo el archivo
             if not node.args:
-                self.findings_data.append({
-                    "type": "memory_intensive",
-                    "method": method_name,
-                    "node": node
-                })
+                self.findings_data.append(
+                    {"type": "memory_intensive", "method": method_name, "node": node}
+                )
 
     def visit_Compare(self, node: ast.Compare):
         """Detecta búsquedas lineales ineficientes dentro de bucles."""
@@ -143,18 +124,15 @@ class PerformanceVisitor(ast.NodeVisitor):
                     name = comparator.id.lower()
                     if any(s in name for s in ["map", "dict", "set", "hash"]):
                         continue
-                
-                self.findings_data.append({
-                    "type": "linear_search",
-                    "node": node
-                })
+
+                self.findings_data.append({"type": "linear_search", "node": node})
         self.generic_visit(node)
 
 
 class PerformanceAgent(BaseAgent):
     """
     Agente especializado en detectar ineficiencias de rendimiento.
-    
+
     Analiza:
     1. Complejidad Algorítmica: Bucles anidados.
     2. Database: Problema N+1 queries.
@@ -165,10 +143,7 @@ class PerformanceAgent(BaseAgent):
 
     def __init__(self):
         super().__init__(
-            name="PerformanceAgent",
-            version="1.1.0",
-            category="performance",
-            enabled=True
+            name="PerformanceAgent", version="1.1.0", category="performance", enabled=True
         )
 
     def analyze(self, context: AnalysisContext) -> List[Finding]:
@@ -186,7 +161,7 @@ class PerformanceAgent(BaseAgent):
 
         try:
             tree = ast.parse(context.code_content)
-            
+
             # 1. Validar uso de 'with' para recursos
             safe_resource_lines = self._find_safe_resource_calls(tree)
 
@@ -201,7 +176,9 @@ class PerformanceAgent(BaseAgent):
 
             # Ordenar hallazgos por severidad (CRITICAL primero)
             findings.sort(
-                key=lambda f: (["critical", "high", "medium", "low", "info"].index(f.severity.value))
+                key=lambda f: (
+                    ["critical", "high", "medium", "low", "info"].index(f.severity.value)
+                )
             )
 
             self._emit_agent_completed(context, findings)
@@ -230,36 +207,45 @@ class PerformanceAgent(BaseAgent):
                             safe_lines.add(item.context_expr.lineno)
         return safe_lines
 
-    def _create_finding(self, item: dict, context: AnalysisContext, safe_lines: Set[int]) -> Finding | None:
+    def _create_finding(
+        self, item: dict, context: AnalysisContext, safe_lines: Set[int]
+    ) -> Finding | None:
         """Convierte los datos crudos del visitante en objetos Finding."""
         node = item["node"]
         issue_type = item["type"]
-        
+
         if issue_type == "complexity":
-            depth = item['depth']
+            depth = item["depth"]
             severity = Severity.CRITICAL if depth >= 3 else Severity.HIGH
-            
+
             return Finding(
                 severity=severity,
                 issue_type="performance/complexity",
                 message=f"Posible complejidad O(n^{depth}) detectada por bucles anidados.",
                 line_number=node.lineno,
                 code_snippet=self._get_snippet(context, node.lineno),
-                suggestion="Intenta aplanar los bucles o mover el bucle interno a una función separada optimizada.",
+                suggestion=(
+                    "Intenta aplanar los bucles o mover el bucle interno a una función "
+                    "separada optimizada."
+                ),
                 agent_name=self.name,
-                rule_id="PERF001_NESTED_LOOPS"
+                rule_id="PERF001_NESTED_LOOPS",
             )
-        
+
         elif issue_type == "n_plus_one":
             return Finding(
                 severity=Severity.CRITICAL,
                 issue_type="performance/database",
-                message=f"Posible problema N+1 Query: Llamada a '{item['method']}' dentro de un bucle.",
+                message=(
+                    f"Posible problema N+1 Query: Llamada a '{item['method']}' dentro de un bucle."
+                ),
                 line_number=node.lineno,
                 code_snippet=self._get_snippet(context, node.lineno),
-                suggestion="Usa 'eager loading' (JOINs) o procesa los datos en lote fuera del bucle.",
+                suggestion=(
+                    "Usa 'eager loading' (JOINs) o procesa los datos en lote fuera del bucle."
+                ),
                 agent_name=self.name,
-                rule_id="PERF004_N_PLUS_ONE"
+                rule_id="PERF004_N_PLUS_ONE",
             )
 
         elif issue_type == "memory_intensive":
@@ -269,11 +255,14 @@ class PerformanceAgent(BaseAgent):
                 message=f"Operación de memoria intensiva '{item['method']}' sin límites detectada.",
                 line_number=node.lineno,
                 code_snippet=self._get_snippet(context, node.lineno),
-                suggestion=f"Usa argumentos de tamaño (ej: {item['method']}(1024)) o procesa el archivo línea por línea.",
+                suggestion=(
+                    f"Usa argumentos de tamaño (ej: {item['method']}(1024)) o procesa el "
+                    "archivo línea por línea."
+                ),
                 agent_name=self.name,
-                rule_id="PERF005_UNBOUNDED_MEMORY"
+                rule_id="PERF005_UNBOUNDED_MEMORY",
             )
-        
+
         elif issue_type == "inefficient_insert":
             return Finding(
                 severity=Severity.HIGH,
@@ -281,9 +270,11 @@ class PerformanceAgent(BaseAgent):
                 message="Uso ineficiente de list.insert(0) dentro de un bucle (O(n)).",
                 line_number=node.lineno,
                 code_snippet=self._get_snippet(context, node.lineno),
-                suggestion="Usa collections.deque.appendleft() o construye la lista y usa reverse().",
+                suggestion=(
+                    "Usa collections.deque.appendleft() o construye la lista y usa reverse()."
+                ),
                 agent_name=self.name,
-                rule_id="PERF002_LIST_INSERT"
+                rule_id="PERF002_LIST_INSERT",
             )
 
         elif issue_type == "linear_search":
@@ -293,15 +284,18 @@ class PerformanceAgent(BaseAgent):
                 message="Búsqueda lineal ('in') detectada dentro de un bucle.",
                 line_number=node.lineno,
                 code_snippet=self._get_snippet(context, node.lineno),
-                suggestion="Si la colección es grande, considera convertirla a un 'set' o 'dict' para búsquedas O(1).",
+                suggestion=(
+                    "Si la colección es grande, considera convertirla a un 'set' o 'dict' "
+                    "para búsquedas O(1)."
+                ),
                 agent_name=self.name,
-                rule_id="PERF002_LINEAR_SEARCH"
+                rule_id="PERF002_LINEAR_SEARCH",
             )
 
         elif issue_type == "resource_leak":
             if node.lineno in safe_lines:
                 return None
-            
+
             resource = item.get("resource", "resource")
             return Finding(
                 severity=Severity.HIGH,
@@ -309,11 +303,13 @@ class PerformanceAgent(BaseAgent):
                 message=f"Llamada a {resource} sin usar un context manager ('with').",
                 line_number=node.lineno,
                 code_snippet=self._get_snippet(context, node.lineno),
-                suggestion="Usa 'with' statement para asegurar que el recurso se libere correctamente.",
+                suggestion=(
+                    "Usa 'with' statement para asegurar que el recurso se libere correctamente."
+                ),
                 agent_name=self.name,
-                rule_id="PERF003_RESOURCE_LEAK"
+                rule_id="PERF003_RESOURCE_LEAK",
             )
-            
+
         return None
 
     def _get_snippet(self, context: AnalysisContext, line_no: int) -> str:
