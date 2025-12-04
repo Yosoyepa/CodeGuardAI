@@ -11,6 +11,7 @@ from fastapi import HTTPException, UploadFile
 from src.agents.quality_agent import QualityAgent
 from src.agents.security_agent import SecurityAgent
 from src.agents.style_agent import StyleAgent
+from src.agents.performance_agent import PerformanceAgent
 from src.core.events.analysis_events import AnalysisEventType
 from src.core.events.event_bus import EventBus
 from src.models.enums.review_status import ReviewStatus
@@ -96,6 +97,13 @@ class AnalysisService:
             findings.extend(quality_agent.analyze(context))
         except Exception as e:
             logger.error(f"Error ejecutando QualityAgent: {e}")
+
+        # Performance Agent
+        try:
+            performance_agent = PerformanceAgent()
+            findings.extend(performance_agent.analyze(context))
+        except Exception as e:
+            logger.error(f"Error ejecutando PerformanceAgent: {e}")
 
         # 4. Calcular Quality Score (RN8)
         quality_score = self._calculate_quality_score(findings)

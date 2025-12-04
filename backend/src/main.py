@@ -8,6 +8,18 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from src.routers.analysis import router as analysis_router
 from src.routers.auth import router as auth_router
+from src.agents.quality_agent import QualityAgent
+from src.agents.security_agent import SecurityAgent
+from src.agents.style_agent import StyleAgent
+from src.agents.performance_agent import PerformanceAgent
+
+# Registry of available agents
+AVAILABLE_AGENTS = [
+    SecurityAgent(),
+    QualityAgent(),
+    StyleAgent(),
+    PerformanceAgent(),
+]
 
 # Create FastAPI app
 app = FastAPI(
