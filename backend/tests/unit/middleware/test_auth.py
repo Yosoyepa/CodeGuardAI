@@ -29,7 +29,7 @@ class TestGetCurrentUser:
         credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials="valid-token")
 
         mock_payload = {
-            "user_id": "user_abc123",
+            "sub": "user_abc123",
             "email": "test@example.com",
             "name": "Test User",
         }
@@ -92,7 +92,7 @@ class TestGetOptionalUser:
         credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials="valid-token")
 
         mock_payload = {
-            "user_id": "user_optional",
+            "sub": "user_optional",
             "email": "optional@test.com",
             "name": "Optional User",
         }

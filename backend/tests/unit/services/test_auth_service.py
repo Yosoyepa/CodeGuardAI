@@ -44,7 +44,7 @@ class TestAuthService:
     ):
         """login_user crea usuario si no existe."""
         mock_clerk_client.verify_token.return_value = {
-            "user_id": "user_new",
+            "sub": "user_new",
             "email": "new@example.com",
             "name": "New User",
         }
@@ -62,7 +62,7 @@ class TestAuthService:
     ):
         """login_user actualiza usuario si ya existe."""
         mock_clerk_client.verify_token.return_value = {
-            "user_id": "user_abc123",
+            "sub": "user_abc123",
             "email": "updated@example.com",
             "name": "Updated Name",
         }
@@ -87,7 +87,7 @@ class TestAuthService:
     def test_get_user_from_token(self, auth_service, mock_clerk_client):
         """get_user_from_token retorna User sin sincronizar BD."""
         mock_clerk_client.verify_token.return_value = {
-            "user_id": "user_fromtoken",
+            "sub": "user_fromtoken",
             "email": "fromtoken@example.com",
             "name": "From Token",
         }

@@ -47,20 +47,25 @@ class TestClerkClient:
     @patch("src.external.clerk_client.settings")
     def test_verify_token_valid(self, mock_settings: MagicMock):
         """Token válido retorna payload correcto."""
-        mock_settings.CLERK_SECRET_KEY = TEST_SECRET_KEY
+        mock_settings.CLERK_JWT_SIGNING_KEY = TEST_SECRET_KEY
+        mock_settings.CLERK_SECRET_KEY = None
+        mock_settings.CLERK_JWKS_URL = None
         client = ClerkClient()
         token = create_valid_token()
 
         result = client.verify_token(token)
 
-        assert result["user_id"] == "user_test123"
+        # verify_token retorna el payload completo del JWT con 'sub'
+        assert result["sub"] == "user_test123"
         assert result["email"] == "test@example.com"
         assert result["name"] == "Test User"
 
     @patch("src.external.clerk_client.settings")
     def test_verify_token_expired(self, mock_settings: MagicMock):
         """Token expirado lanza ClerkTokenExpiredError."""
-        mock_settings.CLERK_SECRET_KEY = TEST_SECRET_KEY
+        mock_settings.CLERK_JWT_SIGNING_KEY = TEST_SECRET_KEY
+        mock_settings.CLERK_SECRET_KEY = None
+        mock_settings.CLERK_JWKS_URL = None
         client = ClerkClient()
         token = create_expired_token()
 
@@ -70,7 +75,9 @@ class TestClerkClient:
     @patch("src.external.clerk_client.settings")
     def test_verify_token_invalid(self, mock_settings: MagicMock):
         """Token inválido lanza ClerkTokenInvalidError."""
-        mock_settings.CLERK_SECRET_KEY = TEST_SECRET_KEY
+        mock_settings.CLERK_JWT_SIGNING_KEY = TEST_SECRET_KEY
+        mock_settings.CLERK_SECRET_KEY = None
+        mock_settings.CLERK_JWKS_URL = None
         client = ClerkClient()
 
         with pytest.raises(ClerkTokenInvalidError):
@@ -79,7 +86,9 @@ class TestClerkClient:
     @patch("src.external.clerk_client.settings")
     def test_verify_token_malformed(self, mock_settings: MagicMock):
         """Token malformado lanza ClerkTokenInvalidError."""
-        mock_settings.CLERK_SECRET_KEY = TEST_SECRET_KEY
+        mock_settings.CLERK_JWT_SIGNING_KEY = TEST_SECRET_KEY
+        mock_settings.CLERK_SECRET_KEY = None
+        mock_settings.CLERK_JWKS_URL = None
         client = ClerkClient()
 
         with pytest.raises(ClerkTokenInvalidError):
@@ -87,8 +96,10 @@ class TestClerkClient:
 
     @patch("src.external.clerk_client.settings")
     def test_get_user_id_from_token(self, mock_settings: MagicMock):
-        """get_user_id_from_token retorna el user_id."""
-        mock_settings.CLERK_SECRET_KEY = TEST_SECRET_KEY
+        """get_user_id_from_token retorna el user_id (sub claim)."""
+        mock_settings.CLERK_JWT_SIGNING_KEY = TEST_SECRET_KEY
+        mock_settings.CLERK_SECRET_KEY = None
+        mock_settings.CLERK_JWKS_URL = None
         client = ClerkClient()
         token = create_valid_token()
 
@@ -99,7 +110,9 @@ class TestClerkClient:
     @patch("src.external.clerk_client.settings")
     def test_get_user_id_missing_sub(self, mock_settings: MagicMock):
         """Token sin sub lanza ClerkTokenInvalidError."""
-        mock_settings.CLERK_SECRET_KEY = TEST_SECRET_KEY
+        mock_settings.CLERK_JWT_SIGNING_KEY = TEST_SECRET_KEY
+        mock_settings.CLERK_SECRET_KEY = None
+        mock_settings.CLERK_JWKS_URL = None
         client = ClerkClient()
 
         now = int(time.time())
@@ -112,4 +125,5 @@ class TestClerkClient:
         with pytest.raises(ClerkTokenInvalidError) as exc:
             client.get_user_id_from_token(token)
 
-        assert "user_id" in str(exc.value).lower()
+        # El mensaje ahora menciona 'sub' en lugar de 'user_id'
+        assert "sub" in str(exc.value).lower()

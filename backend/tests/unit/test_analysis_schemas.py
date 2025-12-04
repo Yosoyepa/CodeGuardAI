@@ -267,7 +267,7 @@ class TestAnalysisContextHelpers:
 
     def test_finding_from_and_to_dict_without_detected_at(self):
         data = {
-            "severity": "critical",
+            "severity": "CRITICAL",
             "issue_type": "dangerous_function",
             "message": "Use of eval() detected",
             "line_number": 5,
@@ -275,7 +275,7 @@ class TestAnalysisContextHelpers:
         }
         finding = Finding.from_dict(data)
         serialized = finding.to_dict()
-        assert serialized["severity"] == "critical"
+        assert serialized["severity"] == "CRITICAL"
         assert "detected_at" in serialized
 
     def test_calculate_penalty_map(self):

@@ -174,3 +174,70 @@ def test_calculate_quality_score_all_severities(service):
     ]
     score = service._calculate_quality_score(findings)
     assert score == 100 - (10 + 5 + 2 + 1 + 0)  # 82
+
+
+# Tests de analyze_code (Integración de servicio)
+
+
+@pytest.mark.asyncio
+async def test_analyze_code_success(service, mock_repo):
+    """Prueba el flujo completo de analyze_code."""
+    content = b"import os\n" * 6
+    mock_file = AsyncMock(spec=UploadFile)
+    mock_file.filename = "valid.py"
+    mock_file.read.return_value = content
+
+    # Mock all three agents used in analysis_service
+    with patch("src.services.analysis_service.SecurityAgent") as MockSecurityAgent, patch(
+        "src.services.analysis_service.StyleAgent"
+    ) as MockStyleAgent, patch("src.services.analysis_service.QualityAgent") as MockQualityAgent:
+
+        mock_sec_instance = MockSecurityAgent.return_value
+        mock_sec_instance.analyze.return_value = []
+
+        mock_style_instance = MockStyleAgent.return_value
+        mock_style_instance.analyze.return_value = []
+
+        mock_qual_instance = MockQualityAgent.return_value
+        mock_qual_instance.analyze.return_value = []
+
+        mock_repo.create.return_value = MagicMock(status=ReviewStatus.COMPLETED)
+
+        result = await service.analyze_code(mock_file, "user_123")
+
+        assert result.status == ReviewStatus.COMPLETED
+        mock_repo.create.assert_called_once()
+        mock_sec_instance.analyze.assert_called_once()
+        mock_style_instance.analyze.assert_called_once()
+        mock_qual_instance.analyze.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_analyze_code_agent_failure(service, mock_repo):
+    """Prueba que el análisis continúe si un agente falla."""
+    content = b"import os\n" * 6
+    mock_file = AsyncMock(spec=UploadFile)
+    mock_file.filename = "valid.py"
+    mock_file.read.return_value = content
+
+    with patch("src.services.analysis_service.SecurityAgent") as MockSecurityAgent, patch(
+        "src.services.analysis_service.StyleAgent"
+    ) as MockStyleAgent, patch("src.services.analysis_service.QualityAgent") as MockQualityAgent:
+
+        # Security agent fails (along with StyleAgent in same try block)
+        mock_sec_instance = MockSecurityAgent.return_value
+        mock_sec_instance.analyze.side_effect = Exception("Security Agent Failed")
+
+        mock_style_instance = MockStyleAgent.return_value
+        mock_style_instance.analyze.return_value = []
+
+        # Quality agent succeeds
+        mock_qual_instance = MockQualityAgent.return_value
+        mock_qual_instance.analyze.return_value = []
+
+        mock_repo.create.return_value = MagicMock(status=ReviewStatus.COMPLETED)
+
+        result = await service.analyze_code(mock_file, "user_123")
+
+        assert result.status == ReviewStatus.COMPLETED
+        mock_repo.create.assert_called_once()
