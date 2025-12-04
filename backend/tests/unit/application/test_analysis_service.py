@@ -40,6 +40,23 @@ class TestAnalyzeCodeFull:
     """Tests completos para analyze_code."""
 
     @pytest.mark.asyncio
+    async def test_analyze_code_success(self, service, mock_repo):
+        """Verifica flujo completo de análisis exitoso."""
+        content = b"import os\n\ndef main():\n    pass\n\nif __name__ == '__main__':\n    main()\n"
+        mock_file = AsyncMock(spec=UploadFile)
+        mock_file.filename = "clean_code.py"
+        mock_file.read.return_value = content
+        mock_file.seek = AsyncMock()
+
+        with patch.object(
+            service, "_validate_file", return_value=(content.decode(), "clean_code.py")
+        ):
+            result = await service.analyze_code(mock_file, "user_123")
+
+        assert result is not None
+        mock_repo.create.assert_called_once()
+
+    @pytest.mark.asyncio
     async def test_analyze_code_with_vulnerabilities(self, service, mock_repo):
         """Verifica análisis con código vulnerable."""
         vulnerable_code = b"""import os
