@@ -3,7 +3,6 @@ QualityAgent - Agente especializado en análisis de calidad de código Python.
 """
 
 import ast
-import hashlib
 from typing import Dict, List
 
 try:

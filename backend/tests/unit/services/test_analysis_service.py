@@ -188,9 +188,9 @@ async def test_analyze_code_success(service, mock_repo):
     mock_file.read.return_value = content
 
     # Mock all three agents used in analysis_service
-    with patch("src.services.analysis_service.SecurityAgent") as MockSecurityAgent, \
-         patch("src.services.analysis_service.StyleAgent") as MockStyleAgent, \
-         patch("src.services.analysis_service.QualityAgent") as MockQualityAgent:
+    with patch("src.services.analysis_service.SecurityAgent") as MockSecurityAgent, patch(
+        "src.services.analysis_service.StyleAgent"
+    ) as MockStyleAgent, patch("src.services.analysis_service.QualityAgent") as MockQualityAgent:
 
         mock_sec_instance = MockSecurityAgent.return_value
         mock_sec_instance.analyze.return_value = []
@@ -220,9 +220,9 @@ async def test_analyze_code_agent_failure(service, mock_repo):
     mock_file.filename = "valid.py"
     mock_file.read.return_value = content
 
-    with patch("src.services.analysis_service.SecurityAgent") as MockSecurityAgent, \
-         patch("src.services.analysis_service.StyleAgent") as MockStyleAgent, \
-         patch("src.services.analysis_service.QualityAgent") as MockQualityAgent:
+    with patch("src.services.analysis_service.SecurityAgent") as MockSecurityAgent, patch(
+        "src.services.analysis_service.StyleAgent"
+    ) as MockStyleAgent, patch("src.services.analysis_service.QualityAgent") as MockQualityAgent:
 
         # Security agent fails (along with StyleAgent in same try block)
         mock_sec_instance = MockSecurityAgent.return_value
