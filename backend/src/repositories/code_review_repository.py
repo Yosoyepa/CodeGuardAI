@@ -5,6 +5,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from src.models.code_review import CodeReviewEntity
+from src.models.enums.severity_enum import SeverityEnum
+from src.models.finding import AgentFindingEntity
 from src.schemas.analysis import CodeReview
 from src.utils.encryption.aes_encryptor import decrypt_aes256, encrypt_aes256
 from src.utils.logger import logger
@@ -62,6 +64,31 @@ class CodeReviewRepository:
             )
 
             self.session.add(entity)
+
+            # Persistir hallazgos (findings)
+            for finding in review.findings:
+                # Mapear severidad de Schema (lowercase) a Entity (uppercase)
+                if finding.severity.name not in SeverityEnum.__members__:
+                    logger.warning(
+                        f"Finding with unsupported severity '{finding.severity.name}' "
+                        f"skipped for review {review.id}."
+                    )
+                    continue
+                severity_enum = SeverityEnum[finding.severity.name]
+
+                finding_entity = AgentFindingEntity(
+                    review_id=review.id,
+                    agent_type=finding.agent_name,
+                    severity=severity_enum,
+                    issue_type=finding.issue_type,
+                    line_number=finding.line_number,
+                    code_snippet=finding.code_snippet,
+                    message=finding.message,
+                    suggestion=finding.suggestion,
+                    created_at=finding.detected_at,
+                )
+                self.session.add(finding_entity)
+
             self.session.commit()
 
             logger.info(f"CodeReview persistido exitosamente: {review.id}")
