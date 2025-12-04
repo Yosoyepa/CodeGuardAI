@@ -82,6 +82,24 @@ password = "secret123"
         call_args = mock_repo.create.call_args[0][0]
         assert call_args.total_findings >= 0
 
+    @pytest.mark.asyncio
+    async def test_analyze_code_agent_exception_handled(self, service, mock_repo):
+        """Verifica que excepciones del agente se manejan gracefully."""
+        content = b"import os\n\ndef main():\n    pass\n\nmain()\n"
+        mock_file = AsyncMock(spec=UploadFile)
+        mock_file.filename = "test.py"
+        mock_file.read.return_value = content
+        mock_file.seek = AsyncMock()
+
+        with patch.object(service, "_validate_file", return_value=(content.decode(), "test.py")):
+            with patch(
+                "src.services.analysis_service.SecurityAgent.analyze",
+                side_effect=Exception("Agent crashed"),
+            ):
+                result = await service.analyze_code(mock_file, "user_789")
+
+        # Debe completar aunque el agente falle
+        assert result is not None
 
 
 class TestValidateFileEdgeCases:
