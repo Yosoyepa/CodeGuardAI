@@ -2,13 +2,15 @@
 Servicio de análisis de código para CodeGuard AI.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Tuple
 from uuid import uuid4
 
 from fastapi import HTTPException, UploadFile
 
+from src.agents.quality_agent import QualityAgent
 from src.agents.security_agent import SecurityAgent
+from src.agents.style_agent import StyleAgent
 from src.core.events.analysis_events import AnalysisEventType
 from src.core.events.event_bus import EventBus
 from src.models.enums.review_status import ReviewStatus
@@ -72,13 +74,28 @@ class AnalysisService:
         # Notificar inicio usando el Enum
         self.event_bus.publish(AnalysisEventType.ANALYSIS_STARTED, {"id": str(analysis_id)})
 
-        # 3. Ejecutar Agentes (Solo SecurityAgent para Sprint 1)
+        # 3. Ejecutar Agentes (SecurityAgent, StyleAgent y QualityAgent)
         findings: List[Finding] = []
+
+        # Security Agent + Style Agent
         try:
-            agent = SecurityAgent()
-            findings = agent.analyze(context)
+            security_agent = SecurityAgent()
+            style_agent = StyleAgent()
+
+            security_findings = security_agent.analyze(context)
+            style_findings = style_agent.analyze(context)
+
+            findings = security_findings + style_findings
+
         except Exception as e:
-            logger.error(f"Error ejecutando SecurityAgent: {e}")
+            logger.error(f"Error ejecutando agentes de analisis: {e}")
+
+        # Quality Agent
+        try:
+            quality_agent = QualityAgent()
+            findings.extend(quality_agent.analyze(context))
+        except Exception as e:
+            logger.error(f"Error ejecutando QualityAgent: {e}")
 
         # 4. Calcular Quality Score (RN8)
         quality_score = self._calculate_quality_score(findings)
@@ -92,8 +109,9 @@ class AnalysisService:
             quality_score=quality_score,
             status=ReviewStatus.COMPLETED,
             total_findings=len(findings),
-            created_at=datetime.utcnow(),
-            completed_at=datetime.utcnow(),
+            findings=findings,
+            created_at=datetime.now(timezone.utc),
+            completed_at=datetime.now(timezone.utc),
         )
 
         # 6. Persistir (RN14)

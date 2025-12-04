@@ -7,6 +7,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.routers.analysis import router as analysis_router
+from src.routers.auth import router as auth_router
+from src.routers.findings import router as findings_router
 
 # Create FastAPI app
 app = FastAPI(
@@ -27,6 +29,8 @@ app.add_middleware(
 )
 
 app.include_router(analysis_router)
+app.include_router(auth_router)
+app.include_router(findings_router)
 
 
 @app.get("/health")

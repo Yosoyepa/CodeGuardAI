@@ -40,7 +40,7 @@ httpx>=0.27.0  # Compatible con Clerk
 
 # ===== AI SERVICES (Sprint 3) =====
 google-generativeai>=0.3.2  # Gemini API
-# google-cloud-aiplatform>=1.40.0  # Vertex AI (opcional)
+google-cloud-aiplatform>=1.40.0  # Vertex AI (opcional)
 
 # ===== DEVELOPMENT TOOLS =====  (Moved to requirements-dev.txt)
 # black>=24.0.0

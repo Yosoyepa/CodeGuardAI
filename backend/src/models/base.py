@@ -17,6 +17,9 @@ class Base(DeclarativeBase):
     comparado con la función antigua `declarative_base()`.
 
     Todas las entidades (ej. `CodeReviewEntity`) deben heredar de esta clase.
+
+    __allow_unmapped__ = True permite usar anotaciones de tipo sin Mapped[]
+    para mantener compatibilidad con el código existente.
     """
 
-    pass
+    __allow_unmapped__ = True
